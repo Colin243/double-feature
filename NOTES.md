@@ -172,7 +172,8 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
 - **Verified by running (local):** `tsc` and eslint pass; unit tests for scoring, vetoes, closest calls, `none` and tie-break independence; 8 end-to-end privacy tests including "one ballot publishes no result" and "simultaneous ballots publish exactly one shared result, hidden from an outsider". A throwaway probe against the real local platform (deleted) showed both-pass and one-`seen` give `none`, and an equal-score tie picks the film the hash rule predicts.
 - **Review fixes:** the PR description still said "spec only" and there was no notes entry; `CONTRACTS.md` lacked the `finalizeRound` action, the new error codes (`ballots_pending`, `result_lookup_failed`, `result_save_failed`), and the `results.ballots` shape (`{ hostVotes, guestVotes }`). I added those plus a closest-call tie test.
 - **Gotcha for the reveal screen:** for outcome `none` the live read has **no `filmId` field** (stored as null), so the UI must treat a missing film as "no match".
-- **Not verified:** the reveal on the deployed app (this PR is not deployed yet), and any screen that shows the result. The reason text says "the host" and "the guest", not display names.
+- **Not verified:** any screen that shows the result (none exists yet). The reason text says "the host" and "the guest", not display names.
+- **Deployed and re-tested (release #5, Sun Nov 22):** I deployed `main` (`650ed54`) and ran `rooms.spec.ts`, `voting.spec.ts` and the full `ballot-privacy.spec.ts` (10 tests, including PR #16's HTTP-read test, "one ballot does not publish a reveal result" and "simultaneous ballots publish exactly one shared result") against https://double-feature.app.space with a temporary Playwright config (deleted, not committed). All 16 passed. Production logs show every action returned HTTP 200 (6 `createRoom`, 7 `joinRoom`, 2 `addDemoPartner`, 7 `openSetupRound`, 1 `setMood`, 6 `startRound`, 14 `submitBallot`, 1 `finalizeRound`), with no warnings or errors. The new `results` collection was accepted on deploy. **A gap in what the logs show:** PR #16's HTTP agent-tools requests do not appear in the production request log (a search for `/_deepspace/agent` found none), so the logs cannot corroborate that test; the test itself received real 200/422 responses from the live URL. The run created more test rooms, rounds and results in the live data.
 
 ### Mon Nov 23: Rooms and private voting
 _(fill in)_
@@ -200,7 +201,7 @@ _(fill in)_
 - [ ] Solo demo-partner path completes in under a minute
 - [ ] Reveal tie-break is deterministic and identical on both screens (deterministic: verified by unit tests and a real-platform probe; "both screens" waits for the reveal screen PR)
 - [ ] No-match round handled
-- [x] Simultaneous submits produce exactly one result (end-to-end test and unit test, local; not yet checked on the deployed app)
+- [x] Simultaneous submits produce exactly one result (end-to-end test and unit test locally, and the end-to-end test against the deployed app, release #5)
 - [ ] Rating edit is saved once and changes the next recommendation input
 - [ ] Already-seen film never reappears
 - [ ] Mobile layout checked on a phone
