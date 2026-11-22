@@ -11,6 +11,7 @@
  */
 import { test, expect, loadAllTestAccounts } from 'deepspace/testing'
 import type { Page } from '@playwright/test'
+import { ballotId } from '../src/schemas/ballots'
 import { authToken, callAction, clientWrite, liveQuery } from './helpers/privacy'
 
 test.skip(loadAllTestAccounts().length < 3, 'Requires three usable DeepSpace test accounts.')
@@ -68,6 +69,60 @@ test('no account can read ballots, not even its own, even with a live subscripti
   // A fresh subscription after both ballots exist is still empty.
   for (const who of [host, guest, outsider]) {
     expect((await liveQuery(who.page, who.token, 'ballots')).records).toEqual([])
+  }
+})
+
+test('authenticated HTTP reads deny individual ballots and return an empty list', async ({ users }) => {
+  const fixtures = await users(2)
+  const [host, guest] = await Promise.all(fixtures.map(fixture => player(fixture.page)))
+  const { roundId, shortlist } = await votingRound(host, guest)
+
+  for (const result of await Promise.all([
+    act(host, 'submitBallot', { roundId, votes: ballotOf(shortlist, 'want') }),
+    act(guest, 'submitBallot', { roundId, votes: ballotOf(shortlist, 'maybe') }),
+  ])) {
+    expect(result.status).toBe(200)
+    expect(result.body).toEqual({ success: true, data: { submitted: true } })
+  }
+
+  const tool = async (who: Player, name: string, input: Record<string, unknown>) => {
+    const response = await who.page.request.post(`/_deepspace/agent/browser/tools/${name}`, {
+      headers: { Authorization: `Bearer ${who.token}` },
+      data: { input },
+    })
+    return { status: response.status(), body: await response.json() }
+  }
+
+  const players = [host, guest]
+  const voterIds = await Promise.all(players.map(async who => {
+    const identity = await tool(who, 'user_current', {})
+    expect(identity.status).toBe(200)
+    const userId = identity.body.result?.data?.user?.id
+    expect(userId).toEqual(expect.any(String))
+    return userId as string
+  }))
+  expect(new Set(voterIds).size).toBe(2)
+
+  for (const who of players) {
+    const control = await tool(who, 'records_get', { collection: 'rounds', recordId: roundId })
+    expect(control.status).toBe(200)
+    expect(control.body).toMatchObject({ ok: true, result: { success: true, data: { record: { recordId: roundId } } } })
+
+    const listed = await tool(who, 'records_query', { collection: 'ballots', where: { roundId } })
+    expect(listed.status).toBe(200)
+    expect(listed.body).toMatchObject({ ok: true, result: { success: true, data: { records: [], count: 0 } } })
+
+    for (const voterId of voterIds) {
+      const denied = await tool(who, 'records_get', {
+        collection: 'ballots', recordId: ballotId(roundId, voterId),
+      })
+      // The SDK checks existence before read permission, so a read denial
+      // also proves this exact ballot exists without exposing it.
+      expect(denied.status).toBe(422)
+      expect(denied.body).toEqual({
+        ok: false, code: 'tool_failed', error: expect.stringMatching(/READ DENIED:.*collection=ballots/),
+      })
+    }
   }
 })
 
