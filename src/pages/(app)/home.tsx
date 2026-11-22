@@ -1,28 +1,66 @@
-/**
- * Placeholder home page — replace this with the app's real home.
- *
- * This is intentionally unstyled scaffolding, not a design to build on.
- * Design the app's own look (layout, theme tokens, typography) from your
- * product's point of view instead of extending this page.
- */
-
-import { useAuthProfileReady } from 'deepspace'
-import { APP_NAME } from '../../constants'
+import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { AuthOverlay, useAuth } from 'deepspace'
+import { Button, Input } from '@/components/ui'
+import { normalizeInviteCode, pendingInviteKey } from '@/lib/invite-code'
+import { roomAction } from '@/lib/room-actions'
 
 export default function HomePage() {
-  const { isSignedIn, user } = useAuthProfileReady({ requireUser: true })
+  const { isLoaded, isSignedIn } = useAuth()
+  const navigate = useNavigate()
+  const [showAuth, setShowAuth] = useState(false)
+  const [code, setCode] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+
+  // The SDK's social sign-in callback returns to /home.
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return
+    const pending = window.sessionStorage.getItem(pendingInviteKey)
+    if (!pending) return
+    window.sessionStorage.removeItem(pendingInviteKey)
+    const invite = normalizeInviteCode(pending)
+    if (invite) navigate(`/join/${invite}`, { replace: true })
+  }, [isLoaded, isSignedIn, navigate])
+
+  async function create() {
+    if (creating) return
+    setCreating(true)
+    setError('')
+    try {
+      const { roomId } = await roomAction('createRoom', {})
+      navigate(`/room/${encodeURIComponent(roomId)}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create a room.')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  function join(event: FormEvent) {
+    event.preventDefault()
+    const invite = normalizeInviteCode(code)
+    if (!invite) {
+      setError('Enter a valid eight-character invite code.')
+      return
+    }
+    navigate(`/join/${invite}`)
+  }
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-3 bg-background px-6 text-center text-foreground">
-      <h1 className="text-2xl font-semibold">{APP_NAME}</h1>
-      <p className="max-w-md text-sm text-muted-foreground">
-        This is a placeholder page. Replace <code>src/pages/(app)/home.tsx</code>{' '}
-        with the app&apos;s real home, and give the app its own theme in{' '}
-        <code>src/themes.css</code>.
-      </p>
-      {isSignedIn && user && (
-        <p className="text-sm text-muted-foreground">Signed in as {user.name ?? user.email}</p>
-      )}
-    </div>
+    <main className="mx-auto grid w-full max-w-lg gap-6 px-6 py-16">
+      <h1 className="text-3xl font-semibold">Movie night</h1>
+      {isLoaded && (isSignedIn
+        ? <Button onClick={create} disabled={creating}>{creating ? 'Creating…' : 'Create a room'}</Button>
+        : <Button onClick={() => setShowAuth(true)}>Sign in to create a room</Button>)}
+      <form onSubmit={join} className="grid gap-3">
+        <label htmlFor="invite-code">Join with an invite code</label>
+        <Input id="invite-code" value={code} onChange={event => setCode(event.target.value)}
+          autoCapitalize="characters" autoComplete="off" required />
+        <Button type="submit" variant="outline">Continue</Button>
+      </form>
+      {error && <p role="alert">{error}</p>}
+      {showAuth && <AuthOverlay onClose={() => setShowAuth(false)} />}
+    </main>
   )
 }

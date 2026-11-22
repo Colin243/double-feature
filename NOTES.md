@@ -118,6 +118,63 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
 **Next**
 - Check sign-in on the live URL in a browser. Then the Monday work: schemas, `joinRoom`, `submitBallot`, three-account privacy test.
 
+**Schemas and seed films (PR #2, `feat/schemas-seed`)**
+- Registered the `rooms`, `rounds` and `ballots` collections. Readiness uses two flat boolean fields. Ballots deny client access for every role and have a deterministic record id helper (`ballotId`).
+- Added six hand-written seed films with stable `slug-year` ids. Runtimes span 96-155 minutes. I have not independently verified the runtimes (I recall 157 for *Lust, Caution*; sources vary).
+- **Review fixes:** the first version let any signed-in user read every room, round and invite code (`member: read: true` is the app-wide role). Changed `rooms` and `rounds` to `read: 'collaborator'` with a `memberIds` column declared as `collaboratorsField`, per the permissions docs. Added `uniqueOn: ['inviteCode']`. Added `roundId`, `userId`, `lockedAt` to `ballots` so actions can query by round. Added `number`, `memberIds`, `inputs` to `rounds` (schemas are additive-only after deploy, so these go in before the first deploy of them).
+- `npx tsc --noEmit` and eslint pass. **Not yet verified:** that `'collaborator'` read actually blocks an outsider, and that an action can read `ballots` while a client query cannot. Both need real accounts on the deployed app.
+
+**Rooms and invites (PR #3, `feat/rooms-invite`)**
+- Implemented by Codex from the spec in `docs/prs/pr-2-rooms-invite.md`; I reviewed it and applied the small fixes below. Actions `createRoom`, `joinRoom`, `addDemoPartner`; pages for home, `/join/<code>` and the room; unit tests in `src/actions/rooms.test.ts`; end-to-end tests in `tests/rooms.spec.ts`.
+- **Design change from my spec:** I specified "re-read after write" to handle two simultaneous joiners. Codex replaced it with a server-only `roomSeatClaims` collection with `uniqueOn: ['roomId']`, so the seat claim itself is atomic. That is better than what I wrote.
+- **Verified by running:** `tsc` and eslint pass; 9 unit tests pass; 4 end-to-end tests pass with the Guest, DF Host and DF Outsider test accounts (host creates, guest joins, outsider cannot read the room, third joiner gets `room_full`, two guests race for one seat, guest vs demo partner race, invite resume after sign-in). I repeated the two race tests 3 more times and they passed each time. This answers the earlier open question: `read: 'collaborator'` does block an outsider (locally).
+- **Not verified at merge time:** everything above ran against the local dev server. The "resume invite after sign-in" test fakes the return by copying cookies from another session; the real GitHub or Google round trip landing on `/home` is untested.
+- **Deployed and re-tested (release #3):** after merging, I deployed `main` and ran the same 4 `tests/rooms.spec.ts` tests against https://double-feature.app.space with a temporary Playwright config (the built-in runner only starts a local server; the temp config was deleted, not committed). All 4 passed. Production logs show the matching calls (4 `createRoom`, 8 `joinRoom`, 1 `addDemoPartner`), so the run did hit production, and no warnings or errors were logged. The run created test rooms in the live data using the three DeepSpace test accounts.
+- **Real GitHub sign-in on the live site (checked in the browser pane, Sun Nov 22):** I opened `/join/<code>` signed out, clicked Sign in (the page saved the pending invite in session storage), and the user completed GitHub sign-in by hand. Afterwards the session was signed in, the saved invite was consumed, and the join page plus the `joinRoom` server action ran as the signed-in user (a made-up code correctly returned "room could not be found"). The page's referrer was github.com. **Not conclusively shown:** that the OAuth return redirected to `/join/<code>` on its own, because the final URL held a different code than the one I saved (the user appears to have entered a code by hand afterwards). Treat the automatic resume as likely but unproven; re-test from a clean signed-out state if it matters for the writeup.
+- **Known tradeoffs:** if a guest wins the seat claim and the room update then fails, no one else can take the seat (and the host cannot add a demo partner) until that same guest retries. There is no cap on rooms per user and rooms never expire. Both left as is for v1.
+- **Review fix applied:** `createRoom` now recognizes an invite-code collision by the `Duplicate:` prefix and the `inviteCode=` field instead of the exact error sentence.
+
+**Moods, rounds and private voting (PR #4, `feat/private-voting`)**
+- Implemented by Codex from `docs/prs/pr-3-private-voting.md`; reviewed and hardened by me. Actions `openSetupRound`, `setMood`, `startRound`, `submitBallot`; the `RoomRound` component (mood setup, one-card-at-a-time voting, review, live readiness); mood and ballot helpers; unit and end-to-end tests.
+- **Design decision I would not have made on my own:** Codex serializes `setMood`, `startRound` and `submitBallot` in a queue inside the RecordRoom Durable Object, because those actions read then write and the platform has no transaction primitive. That is the main reason ballots cannot be lost or overwritten under races.
+- **Review fixes applied:**
+  1. The branch carried the pre-squash rooms commits and conflicted with `main` in six files. I merged `main` in (no force-push, to keep Codex's history) and kept `main`'s rooms code.
+  2. The Durable Object's internal endpoint trusted the `userId` in its request body, guarded only by a hostname check. The action router now HMAC-signs the body with an app secret and the Durable Object rejects anything unsigned or forged (tests: valid, missing, wrong, reused-for-another-user, empty secret).
+  3. `rankSeedFilms` silently falls back to every film when none fit the runtime limit. `startRound` now records `inputs.runtimeLimitIgnored` and the vote screen says so. **With the current six films and the limits 100/120 minutes this cannot trigger yet** (two films run under 100 minutes), so it is covered by a mocked unit test only.
+  4. Replaced the `'Record not found'` string literal with the SDK's `RECORD_NOT_FOUND` constant.
+  5. Renamed the phone e2e test, which claimed "without exposing votes" but only checked the UI. Ballot privacy itself is for the next PR.
+- **Verified by running:** `tsc` and eslint pass; 38 unit tests pass; 6 end-to-end tests pass locally (voting with two accounts, phone-sized demo room, plus the rooms tests), including the voting flow through the signed Durable Object path.
+- **Deployed and re-tested (release #4, Sun Nov 22):** after merging I deployed `main` and ran `tests/rooms.spec.ts` and `tests/voting.spec.ts` against https://double-feature.app.space with a temporary Playwright config (deleted, not committed). All 6 passed. The platform accepted the new `uniqueOn: ['roomId', 'number']` on the already-live `rounds` collection (no warnings or errors in production logs, and rounds were created). Production logs show the matching calls, all HTTP 200: 6 `createRoom`, 9 `joinRoom`, 2 `addDemoPartner`, 2 `openSetupRound`, 1 `setMood`, 2 `startRound`, 3 `submitBallot`. This also exercised the signed Durable Object write path in production (`APP_OWNER_JWT` signing worked). A public `POST /internal/round-mutation` returns 404. The first log query undercounted by a lot; log ingestion lagged by under a minute. The run left test rooms and rounds in the live data.
+- **Still not verified:** that a client cannot read `ballots` and that an outsider cannot submit, end to end (planned: ballot-privacy PR). Double-submit and bad-ballot rejection are unit-tested only, not exercised live.
+- **Known limits:** only round number 1 exists; votes live in React state until submitted, so a refresh mid-vote loses them; a second submit silently keeps the first ballot.
+
+**Ballot privacy and concurrency tests (PR #5, `test/ballot-privacy`)**
+- Built by me (the draft PR was spec-only). `tests/ballot-privacy.spec.ts` plus `tests/helpers/privacy.ts` talk to the app the way a hostile client could: a raw WebSocket `core.subscribe` for reads, a raw `core.put` for writes, and direct action calls with a real session token from `/api/auth/token`. `src/schemas/privacy.test.ts` pins the permission matrix.
+- **What is proven (8 e2e tests, run locally and against the deployed app, release #4):**
+  1. Host, guest and outsider each subscribe to `ballots`, with the subscription open while both ballots are submitted: zero records and zero live changes, even for a player's own ballot.
+  2. An outsider cannot read the room or round; the host and guest can (a control, so an empty result is meaningful).
+  3. An outsider's `submitBallot`, `setMood`, `startRound`, `openSetupRound` and `addDemoPartner` all fail, and the room is unchanged.
+  4. Only the host can open or start a round; a guest gets `not_host`.
+  5. Simultaneous ballots from both players are both accepted and both ready flags land.
+  6. Five malformed ballots, a null ballot and an extra-key call are rejected and nothing is recorded; a valid ballot still goes through.
+  7. No action response contains `votes` or any film id, including repeat and cross-seat submits.
+  8. A client cannot write `ballots`, `rounds`, `rooms` or `roomSeatClaims` directly: every forged write is refused with an explicit error, and the flags, shortlist and seat are unchanged afterwards.
+- **Mutation check:** I temporarily set `ballots` to `member: read: true`; the ballot-read test failed (it received the ballot records). Reverted. So the "cannot read" test is not vacuous.
+- **Test-writing mistake of mine:** the first run failed 3 tests because a raw socket returns the ready flags as `1`/`0` (stored as numbers), where the app's client shows booleans. Fixed the assertions, not the app.
+- **Not covered, on purpose:** the spec's admin read case (no admin test account exists; the platform owner is the only admin, so the permission matrix is checked statically instead). Same user submitting twice with different votes (the stored ballot is not observable from a client; covered by a unit test only). "Exactly one result" under simultaneous submits waits for the reveal PR.
+- The deployed run created more test rooms and rounds in the live data and attempted forged writes against production; all were refused and production logs show no warnings or errors.
+
+**Direct HTTP ballot reads (PR #16) and reveal logic (PR #6, `feat/reveal-logic`)**
+- **PR #16 (Codex, reviewed by me):** one new end-to-end test through the app's HTTP agent-tools endpoint (`/_deepspace/agent/browser/tools/<name>`), a read surface my WebSocket tests did not cover. Listing `ballots` returns nothing and reading one ballot is denied, for both players, with a control read of the round. I mutation-checked it (making `ballots` readable made it fail), and it passes locally and against the deployed app (release #4).
+- **A property worth knowing:** a denied read of one specific ballot (HTTP 422, `READ DENIED`) differs from "not found", because the SDK checks existence before permission. So someone who already knows a round id and a user id can tell whether that player has submitted. Members already see that through the ready flags and an outsider cannot guess the ids, so I judge the risk low and I am not fixing it. The test also pins SDK internals (the 422 and the message text), so an SDK upgrade could break it. Forged writes through the same HTTP tools are not covered yet (follow-up).
+- **PR #6 (Codex, reviewed by me):** `finalizeRound` (pure, `src/lib/finalize.ts`), the `results` collection (`uniqueOn: ['roundId']`, member-only reads) and finalizing inside `submitBallot` once both ready flags are set. I read the scoring against `CONTRACTS.md` line by line and it matches: matches score 3/2/1, `pass` or `seen` vetoes, closest-call points 2/1/0 with a `seen` exclusion and a sum above 0, ties by the smallest FNV-1a hash of `roundId:filmId`, so shortlist order never decides.
+- **Why concurrent submits are safe:** `submitBallot` and `finalizeRound` run inside the one-at-a-time Durable Object queue, the result id is explicit (`result_<roundId>`), the result is saved before the round is marked `revealed` (a retry after a partial failure reuses the stored result), and `uniqueOn` is the backstop.
+- **Verified by running (local):** `tsc` and eslint pass; unit tests for scoring, vetoes, closest calls, `none` and tie-break independence; 8 end-to-end privacy tests including "one ballot publishes no result" and "simultaneous ballots publish exactly one shared result, hidden from an outsider". A throwaway probe against the real local platform (deleted) showed both-pass and one-`seen` give `none`, and an equal-score tie picks the film the hash rule predicts.
+- **Review fixes:** the PR description still said "spec only" and there was no notes entry; `CONTRACTS.md` lacked the `finalizeRound` action, the new error codes (`ballots_pending`, `result_lookup_failed`, `result_save_failed`), and the `results.ballots` shape (`{ hostVotes, guestVotes }`). I added those plus a closest-call tie test.
+- **Gotcha for the reveal screen:** for outcome `none` the live read has **no `filmId` field** (stored as null), so the UI must treat a missing film as "no match".
+- **Not verified:** any screen that shows the result (none exists yet). The reason text says "the host" and "the guest", not display names.
+- **Deployed and re-tested (release #5, Sun Nov 22):** I deployed `main` (`650ed54`) and ran `rooms.spec.ts`, `voting.spec.ts` and the full `ballot-privacy.spec.ts` (10 tests, including PR #16's HTTP-read test, "one ballot does not publish a reveal result" and "simultaneous ballots publish exactly one shared result") against https://double-feature.app.space with a temporary Playwright config (deleted, not committed). All 16 passed. Production logs show every action returned HTTP 200 (6 `createRoom`, 7 `joinRoom`, 2 `addDemoPartner`, 7 `openSetupRound`, 1 `setMood`, 6 `startRound`, 14 `submitBallot`, 1 `finalizeRound`), with no warnings or errors. The new `results` collection was accepted on deploy. **A gap in what the logs show:** PR #16's HTTP agent-tools requests do not appear in the production request log (a search for `/_deepspace/agent` found none), so the logs cannot corroborate that test; the test itself received real 200/422 responses from the live URL. The run created more test rooms, rounds and results in the live data.
+
 ### Mon Nov 23: Rooms and private voting
 _(fill in)_
 
@@ -134,17 +191,17 @@ _(fill in)_
 
 ## Verification checklist (tick only what I checked myself)
 
-- [ ] Sign-in works on the live URL
-- [ ] Guest joins by link; outsider cannot read the room
-- [ ] A third person cannot join a full room
-- [ ] No account can read another's ballot via API or live subscription
-- [ ] Readiness updates live on both screens
+- [x] Sign-in works on the live URL (real GitHub sign-in completed by the user in the browser pane; test accounts also sign in fine. Google not tried. Automatic invite resume after the OAuth return is unproven, see the rooms entry.)
+- [x] Guest joins by link; outsider cannot read the room (4 Playwright tests against the deployed app, release #3, Sun Nov 22)
+- [x] A third person cannot join a full room (same run; also two simultaneous joiners and a guest vs demo partner race, one winner each)
+- [x] No account can read another's ballot via API or live subscription (raw WebSocket subscriptions as host, guest and outsider, with the subscription open while ballots were submitted; local and deployed release #4; mutation-checked)
+- [x] Readiness updates live on both screens (voting e2e test against the deployed app, release #4)
 - [ ] Double submit leaves the first ballot unchanged
-- [ ] Fake film ID or missing vote is rejected
+- [x] Fake film ID or missing vote is rejected (5 malformed ballots plus null and extra-key calls, deployed release #4; a valid ballot still succeeds afterwards)
 - [ ] Solo demo-partner path completes in under a minute
-- [ ] Reveal tie-break is deterministic and identical on both screens
+- [ ] Reveal tie-break is deterministic and identical on both screens (deterministic: verified by unit tests and a real-platform probe; "both screens" waits for the reveal screen PR)
 - [ ] No-match round handled
-- [ ] Simultaneous submits produce exactly one result
+- [x] Simultaneous submits produce exactly one result (end-to-end test and unit test locally, and the end-to-end test against the deployed app, release #5)
 - [ ] Rating edit is saved once and changes the next recommendation input
 - [ ] Already-seen film never reappears
 - [ ] Mobile layout checked on a phone
@@ -152,6 +209,12 @@ _(fill in)_
 
 ## Agent log: things the agent got wrong or I changed
 _(Add entries as they happen: what it produced, what was wrong, what I did instead.)_
+
+- **Schemas, first version:** read access for `rooms` and `rounds` used the app-wide `member` role, which would have exposed every invite code to every signed-in user. Caught in review, fixed with `collaboratorsField` and `'collaborator'` reads.
+- **Voting PR, unsafe-by-default internal endpoint:** Codex's Durable Object endpoint for serialized round writes trusted a `userId` in the request body. Caught in review and fixed with a signed request body.
+- **Voting PR, over-claiming test name:** an e2e test was titled "without exposing votes" but asserted only UI text. Renamed; real privacy tests come with the next PR.
+- **Rooms PR, stale paperwork:** Codex's implementation was correct but left the PR description saying "spec only", added no `NOTES.md` entry, and did not document the new `roomSeatClaims` collection or error codes in `CONTRACTS.md`. Fixed in review.
+- **Docs summary, email sender:** a subagent's summary of the docs said the sender must be `<app-name>@app.space`. The live catalog says it is fixed and `from` is ignored. Trust the CLI output.
 
 ## Writeup draft
 _(Start assembling on Thursday morning from the sections above.)_
