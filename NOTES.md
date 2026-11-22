@@ -124,6 +124,14 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
 - **Review fixes:** the first version let any signed-in user read every room, round and invite code (`member: read: true` is the app-wide role). Changed `rooms` and `rounds` to `read: 'collaborator'` with a `memberIds` column declared as `collaboratorsField`, per the permissions docs. Added `uniqueOn: ['inviteCode']`. Added `roundId`, `userId`, `lockedAt` to `ballots` so actions can query by round. Added `number`, `memberIds`, `inputs` to `rounds` (schemas are additive-only after deploy, so these go in before the first deploy of them).
 - `npx tsc --noEmit` and eslint pass. **Not yet verified:** that `'collaborator'` read actually blocks an outsider, and that an action can read `ballots` while a client query cannot. Both need real accounts on the deployed app.
 
+**Rooms and invites (PR #3, `feat/rooms-invite`)**
+- Implemented by Codex from the spec in `docs/prs/pr-2-rooms-invite.md`; I reviewed it and applied the small fixes below. Actions `createRoom`, `joinRoom`, `addDemoPartner`; pages for home, `/join/<code>` and the room; unit tests in `src/actions/rooms.test.ts`; end-to-end tests in `tests/rooms.spec.ts`.
+- **Design change from my spec:** I specified "re-read after write" to handle two simultaneous joiners. Codex replaced it with a server-only `roomSeatClaims` collection with `uniqueOn: ['roomId']`, so the seat claim itself is atomic. That is better than what I wrote.
+- **Verified by running:** `tsc` and eslint pass; 9 unit tests pass; 4 end-to-end tests pass with the Guest, DF Host and DF Outsider test accounts (host creates, guest joins, outsider cannot read the room, third joiner gets `room_full`, two guests race for one seat, guest vs demo partner race, invite resume after sign-in). I repeated the two race tests 3 more times and they passed each time. This answers the earlier open question: `read: 'collaborator'` does block an outsider (locally).
+- **Not verified:** everything above ran against the local dev server, not the deployed URL. The "resume invite after sign-in" test fakes the return by copying cookies from another session; the real GitHub or Google round trip landing on `/home` is untested.
+- **Known tradeoffs:** if a guest wins the seat claim and the room update then fails, no one else can take the seat (and the host cannot add a demo partner) until that same guest retries. There is no cap on rooms per user and rooms never expire. Both left as is for v1.
+- **Review fix applied:** `createRoom` now recognizes an invite-code collision by the `Duplicate:` prefix and the `inviteCode=` field instead of the exact error sentence.
+
 ### Mon Nov 23: Rooms and private voting
 _(fill in)_
 
@@ -160,6 +168,7 @@ _(fill in)_
 _(Add entries as they happen: what it produced, what was wrong, what I did instead.)_
 
 - **Schemas, first version:** read access for `rooms` and `rounds` used the app-wide `member` role, which would have exposed every invite code to every signed-in user. Caught in review, fixed with `collaboratorsField` and `'collaborator'` reads.
+- **Rooms PR, stale paperwork:** Codex's implementation was correct but left the PR description saying "spec only", added no `NOTES.md` entry, and did not document the new `roomSeatClaims` collection or error codes in `CONTRACTS.md`. Fixed in review.
 - **Docs summary, email sender:** a subagent's summary of the docs said the sender must be `<app-name>@app.space`. The live catalog says it is fixed and `from` is ignored. Trust the CLI output.
 
 ## Writeup draft
