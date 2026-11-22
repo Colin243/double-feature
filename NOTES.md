@@ -148,6 +148,22 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
 - **Still not verified:** that a client cannot read `ballots` and that an outsider cannot submit, end to end (planned: ballot-privacy PR). Double-submit and bad-ballot rejection are unit-tested only, not exercised live.
 - **Known limits:** only round number 1 exists; votes live in React state until submitted, so a refresh mid-vote loses them; a second submit silently keeps the first ballot.
 
+**Ballot privacy and concurrency tests (PR #5, `test/ballot-privacy`)**
+- Built by me (the draft PR was spec-only). `tests/ballot-privacy.spec.ts` plus `tests/helpers/privacy.ts` talk to the app the way a hostile client could: a raw WebSocket `core.subscribe` for reads, a raw `core.put` for writes, and direct action calls with a real session token from `/api/auth/token`. `src/schemas/privacy.test.ts` pins the permission matrix.
+- **What is proven (8 e2e tests, run locally and against the deployed app, release #4):**
+  1. Host, guest and outsider each subscribe to `ballots`, with the subscription open while both ballots are submitted: zero records and zero live changes, even for a player's own ballot.
+  2. An outsider cannot read the room or round; the host and guest can (a control, so an empty result is meaningful).
+  3. An outsider's `submitBallot`, `setMood`, `startRound`, `openSetupRound` and `addDemoPartner` all fail, and the room is unchanged.
+  4. Only the host can open or start a round; a guest gets `not_host`.
+  5. Simultaneous ballots from both players are both accepted and both ready flags land.
+  6. Five malformed ballots, a null ballot and an extra-key call are rejected and nothing is recorded; a valid ballot still goes through.
+  7. No action response contains `votes` or any film id, including repeat and cross-seat submits.
+  8. A client cannot write `ballots`, `rounds`, `rooms` or `roomSeatClaims` directly: every forged write is refused with an explicit error, and the flags, shortlist and seat are unchanged afterwards.
+- **Mutation check:** I temporarily set `ballots` to `member: read: true`; the ballot-read test failed (it received the ballot records). Reverted. So the "cannot read" test is not vacuous.
+- **Test-writing mistake of mine:** the first run failed 3 tests because a raw socket returns the ready flags as `1`/`0` (stored as numbers), where the app's client shows booleans. Fixed the assertions, not the app.
+- **Not covered, on purpose:** the spec's admin read case (no admin test account exists; the platform owner is the only admin, so the permission matrix is checked statically instead). Same user submitting twice with different votes (the stored ballot is not observable from a client; covered by a unit test only). "Exactly one result" under simultaneous submits waits for the reveal PR.
+- The deployed run created more test rooms and rounds in the live data and attempted forged writes against production; all were refused and production logs show no warnings or errors.
+
 ### Mon Nov 23: Rooms and private voting
 _(fill in)_
 
@@ -167,10 +183,10 @@ _(fill in)_
 - [x] Sign-in works on the live URL (real GitHub sign-in completed by the user in the browser pane; test accounts also sign in fine. Google not tried. Automatic invite resume after the OAuth return is unproven, see the rooms entry.)
 - [x] Guest joins by link; outsider cannot read the room (4 Playwright tests against the deployed app, release #3, Sun Nov 22)
 - [x] A third person cannot join a full room (same run; also two simultaneous joiners and a guest vs demo partner race, one winner each)
-- [ ] No account can read another's ballot via API or live subscription
+- [x] No account can read another's ballot via API or live subscription (raw WebSocket subscriptions as host, guest and outsider, with the subscription open while ballots were submitted; local and deployed release #4; mutation-checked)
 - [x] Readiness updates live on both screens (voting e2e test against the deployed app, release #4)
 - [ ] Double submit leaves the first ballot unchanged
-- [ ] Fake film ID or missing vote is rejected
+- [x] Fake film ID or missing vote is rejected (5 malformed ballots plus null and extra-key calls, deployed release #4; a valid ballot still succeeds afterwards)
 - [ ] Solo demo-partner path completes in under a minute
 - [ ] Reveal tie-break is deterministic and identical on both screens
 - [ ] No-match round handled
