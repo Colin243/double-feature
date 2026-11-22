@@ -128,7 +128,9 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
 - Implemented by Codex from the spec in `docs/prs/pr-2-rooms-invite.md`; I reviewed it and applied the small fixes below. Actions `createRoom`, `joinRoom`, `addDemoPartner`; pages for home, `/join/<code>` and the room; unit tests in `src/actions/rooms.test.ts`; end-to-end tests in `tests/rooms.spec.ts`.
 - **Design change from my spec:** I specified "re-read after write" to handle two simultaneous joiners. Codex replaced it with a server-only `roomSeatClaims` collection with `uniqueOn: ['roomId']`, so the seat claim itself is atomic. That is better than what I wrote.
 - **Verified by running:** `tsc` and eslint pass; 9 unit tests pass; 4 end-to-end tests pass with the Guest, DF Host and DF Outsider test accounts (host creates, guest joins, outsider cannot read the room, third joiner gets `room_full`, two guests race for one seat, guest vs demo partner race, invite resume after sign-in). I repeated the two race tests 3 more times and they passed each time. This answers the earlier open question: `read: 'collaborator'` does block an outsider (locally).
-- **Not verified:** everything above ran against the local dev server, not the deployed URL. The "resume invite after sign-in" test fakes the return by copying cookies from another session; the real GitHub or Google round trip landing on `/home` is untested.
+- **Not verified at merge time:** everything above ran against the local dev server. The "resume invite after sign-in" test fakes the return by copying cookies from another session; the real GitHub or Google round trip landing on `/home` is untested.
+- **Deployed and re-tested (release #3):** after merging, I deployed `main` and ran the same 4 `tests/rooms.spec.ts` tests against https://double-feature.app.space with a temporary Playwright config (the built-in runner only starts a local server; the temp config was deleted, not committed). All 4 passed. Production logs show the matching calls (4 `createRoom`, 8 `joinRoom`, 1 `addDemoPartner`), so the run did hit production, and no warnings or errors were logged. The run created test rooms in the live data using the three DeepSpace test accounts.
+- **Still open:** real GitHub or Google sign-in returning to `/home` and resuming the invite, checked by hand on the live site.
 - **Known tradeoffs:** if a guest wins the seat claim and the room update then fails, no one else can take the seat (and the host cannot add a demo partner) until that same guest retries. There is no cap on rooms per user and rooms never expire. Both left as is for v1.
 - **Review fix applied:** `createRoom` now recognizes an invite-code collision by the `Duplicate:` prefix and the `inviteCode=` field instead of the exact error sentence.
 
@@ -148,9 +150,9 @@ _(fill in)_
 
 ## Verification checklist (tick only what I checked myself)
 
-- [ ] Sign-in works on the live URL
-- [ ] Guest joins by link; outsider cannot read the room
-- [ ] A third person cannot join a full room
+- [ ] Sign-in works on the live URL (test accounts sign in fine; real GitHub or Google sign-in still unchecked by me)
+- [x] Guest joins by link; outsider cannot read the room (4 Playwright tests against the deployed app, release #3, Sun Nov 22)
+- [x] A third person cannot join a full room (same run; also two simultaneous joiners and a guest vs demo partner race, one winner each)
 - [ ] No account can read another's ballot via API or live subscription
 - [ ] Readiness updates live on both screens
 - [ ] Double submit leaves the first ballot unchanged
