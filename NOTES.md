@@ -118,6 +118,12 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
 **Next**
 - Check sign-in on the live URL in a browser. Then the Monday work: schemas, `joinRoom`, `submitBallot`, three-account privacy test.
 
+**Schemas and seed films (PR #2, `feat/schemas-seed`)**
+- Registered the `rooms`, `rounds` and `ballots` collections. Readiness uses two flat boolean fields. Ballots deny client access for every role and have a deterministic record id helper (`ballotId`).
+- Added six hand-written seed films with stable `slug-year` ids. Runtimes span 96-155 minutes. I have not independently verified the runtimes (I recall 157 for *Lust, Caution*; sources vary).
+- **Review fixes:** the first version let any signed-in user read every room, round and invite code (`member: read: true` is the app-wide role). Changed `rooms` and `rounds` to `read: 'collaborator'` with a `memberIds` column declared as `collaboratorsField`, per the permissions docs. Added `uniqueOn: ['inviteCode']`. Added `roundId`, `userId`, `lockedAt` to `ballots` so actions can query by round. Added `number`, `memberIds`, `inputs` to `rounds` (schemas are additive-only after deploy, so these go in before the first deploy of them).
+- `npx tsc --noEmit` and eslint pass. **Not yet verified:** that `'collaborator'` read actually blocks an outsider, and that an action can read `ballots` while a client query cannot. Both need real accounts on the deployed app.
+
 ### Mon Nov 23: Rooms and private voting
 _(fill in)_
 
@@ -152,6 +158,9 @@ _(fill in)_
 
 ## Agent log: things the agent got wrong or I changed
 _(Add entries as they happen: what it produced, what was wrong, what I did instead.)_
+
+- **Schemas, first version:** read access for `rooms` and `rounds` used the app-wide `member` role, which would have exposed every invite code to every signed-in user. Caught in review, fixed with `collaboratorsField` and `'collaborator'` reads.
+- **Docs summary, email sender:** a subagent's summary of the docs said the sender must be `<app-name>@app.space`. The live catalog says it is fixed and `from` is ignored. Trust the CLI output.
 
 ## Writeup draft
 _(Start assembling on Thursday morning from the sections above.)_
