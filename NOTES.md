@@ -67,8 +67,17 @@ Notes:
 - Layout: schemas in `src/schemas.ts` and `src/schemas/`, actions in `src/actions/index.ts`, integrations and billing in `src/integrations.ts`, pages in `src/pages/`, worker in `worker.ts`.
 - Test command: `npm test` runs `deepspace test run`.
 
+## Movie data decision
+
+No catalog integration provides movie metadata. Options from general knowledge (verify terms before relying on them): IMDb (paid API, datasets lack posters and hooks, non-commercial licence), TMDB (free key, attribution required, has runtime, posters, where-to-watch), OMDb (free key, daily cap), unofficial IMDb scrapers (don't use).
+
+- **Seed films (Monday):** hand-written in `src/lib/films.ts`. No API, so the demo is deterministic. One-off local script allowed if I want real data; the key stays out of the repo.
+- **Discovery (Wednesday):** decide at 9 a.m. Default is Exa + Wikipedia + YouTube, all inside DeepSpace, with runtime filtering best-effort. TMDB through a server action with `deepspace secrets` is a stretch PR only if everything else is done.
+- Full details and the PR-by-PR schedule are in `docs/PLAN.md`.
+
 ## Open questions
 - [x] Is there a catalog integration for movie metadata? No. See findings above.
+- [ ] TMDB or stay inside DeepSpace for discovery? Decide Wednesday 9 a.m. (default: stay inside).
 - [ ] Which third integration earns its place? Leading candidate: YouTube trailers. The task says no minimum, but the bar box says three.
 - [ ] Does `read: false` on a collection still allow actions to read it? Test early.
 - [ ] Does the OAuth flow return a guest to the join page after sign-in?
