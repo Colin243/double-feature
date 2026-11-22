@@ -40,3 +40,20 @@ Case 7 matters because both actions update the same round row. Because readiness
 
 ## Not in this PR
 New features. If a test fails, fix it in a separate commit on the relevant earlier PR branch or a follow-up, and log it in the agent-mistakes section.
+
+## As built
+Implemented in `tests/ballot-privacy.spec.ts` (8 end-to-end tests), `tests/helpers/privacy.ts` (token, action, raw live-query and raw client-write helpers) and `src/schemas/privacy.test.ts` (permission matrix). Run locally and against the deployed app.
+
+| Spec case | Covered by |
+|---|---|
+| 1, 2 Ballots unreadable, including live | `no account can read ballots…` (subscription open while ballots are submitted) |
+| 3 Admin reads ballots | `privacy.test.ts` only. No admin test account exists, so this is a static check of the permission matrix. |
+| 4 Outsider reads rooms and rounds | `an outsider cannot read the room or round…` with a member control |
+| 5, 6 Outsider and guest actions | `an outsider cannot run any…`, `only the host can open or start a round` |
+| 7 Simultaneous submit | `simultaneous ballots…` (both accepted, both flags land) |
+| 8 Same user submits twice | Unit test only (`rounds.test.ts`). The stored ballot is not observable from a client. |
+| 9 Malformed ballots | `malformed ballots are rejected…` |
+| 10 No votes in any response | `no action response ever contains votes` |
+| Added | `a client cannot write rooms, rounds or ballots directly` (forged client writes refused) |
+
+Reading flags over a raw socket returns `1`/`0`, not booleans.
