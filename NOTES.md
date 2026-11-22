@@ -155,3 +155,9 @@ _(Add entries as they happen: what it produced, what was wrong, what I did inste
 
 ## Writeup draft
 _(Start assembling on Thursday morning from the sections above.)_
+
+### Sun Nov 22: Schemas and seed films
+
+- Registered the rooms, rounds and ballots collections. Readiness uses two flat boolean fields. Ballots deny client access for every role and have a deterministic record ID helper.
+- Added six hand-written seed films with original hooks, stable IDs and runtimes checked against published listings. The catalog spans 96–155 minutes.
+- Room and round reads currently apply to the app-level member role. The outsider-read case must be addressed before enabling room creation. The deployed server-action and client-query ballot check is still open.
