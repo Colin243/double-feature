@@ -2,9 +2,10 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useQuery } from 'deepspace'
 import { Button, Textarea } from '@/components/ui'
 import { roomAction } from '@/lib/room-actions'
+import { RoundReveal } from '@/components/RoundReveal'
 import { buildBrief, moodChips } from '@/lib/moods'
 import type { Mood, RuntimeLimit } from '@/lib/moods'
-import { validateBallot, voteOptions } from '@/lib/ballot'
+import { validateBallot, voteLabels, voteOptions } from '@/lib/ballot'
 import type { Vote, Votes } from '@/lib/ballot'
 import type { Film } from '@/lib/films'
 import './room-round.css'
@@ -22,9 +23,6 @@ type Round = {
 }
 
 const runtimes = [[0, 'Any'], [120, 'Under 2h'], [100, 'Under 100m']] as const
-const voteLabels: Record<Vote, string> = {
-  want: 'Want to watch', maybe: 'Maybe', pass: 'Pass', seen: 'Already seen',
-}
 
 function useRoundRequest() {
   const [busy, setBusy] = useState(false)
@@ -56,8 +54,15 @@ function RoundShell({ children }: { children: ReactNode }) {
   )
 }
 
-export function RoomRound({ roomId, isHost }: { roomId: string; isHost: boolean }) {
-  const { records, status } = useQuery<Round>('rounds', { where: { roomId, number: 1 }, limit: 1 })
+export function RoomRound({ roomId, isHost, partnerLabel = 'Your partner' }: {
+  roomId: string
+  isHost: boolean
+  partnerLabel?: string
+}) {
+  // Always show the room's latest round: a new round opens after a reveal.
+  const { records, status } = useQuery<Round>('rounds', {
+    where: { roomId }, orderBy: 'number', orderDir: 'desc', limit: 1,
+  })
   const round = records[0]
   const { busy, error, run } = useRoundRequest()
 
@@ -78,7 +83,10 @@ export function RoomRound({ roomId, isHost }: { roomId: string; isHost: boolean 
     <RoundShell>
       {round.data.status === 'setup'
         ? <MoodSetup key={round.recordId} round={round.data} roundId={round.recordId} roomId={roomId} isHost={isHost} />
-        : <Voting key={round.recordId} round={round.data} roundId={round.recordId} isHost={isHost} />}
+        : round.data.status === 'revealed'
+          ? <RoundReveal key={round.recordId} roomId={roomId} roundId={round.recordId}
+              shortlist={round.data.shortlist} isHost={isHost} partnerLabel={partnerLabel} />
+          : <Voting key={round.recordId} round={round.data} roundId={round.recordId} isHost={isHost} />}
     </RoundShell>
   )
 }

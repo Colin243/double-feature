@@ -43,3 +43,12 @@ Both screens show the same result the moment it exists, with a clear reason, and
 
 ## Not in this PR
 Ratings and trailers.
+
+## As built
+Where this differs from the plan above:
+- **No separate route.** The reveal is a view inside the room screen (`RoomRound` switches to `RoundReveal` when the round's status becomes `revealed`), so both players move to it live, and a player who opens the room later lands on the same card. There is no `reveal.tsx` page.
+- **Components:** `RevealCard`, `Receipts`, `RoundReveal`; no `WaitingForPartner` (the existing "Ballot submitted" screen already waits without showing anything). Styles are in `room-round.css`, not `styles.css`.
+- **Pure helpers:** `src/lib/tasteMatch.ts` (`tasteMatch`, `personalizeReason`, which turns "The host ... the guest ..." into "You ... your partner ..." for each viewer) with unit tests; `use-reduced-motion.ts`.
+- **Start another round** is the existing `openSetupRound` action, now following the room's latest round, so `number` is no longer fixed at 1. A later round skips earlier picks and films marked seen. See CONTRACTS.
+- **Tests:** `tests/reveal.spec.ts` (same pick for both players with the hash-predicted film, closest-call label and personalised reasons, no-match with the host-only button and round two, live arrival and late arrival, reduced motion, 375px no sideways scroll, no votes in the other player's browser frames before the reveal, solo demo room) and `src/actions/next-round.test.ts`.
+- **Not done here:** the "five runs in a row on the deployed URL" acceptance item (not deployed yet).

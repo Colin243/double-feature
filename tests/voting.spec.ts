@@ -29,7 +29,13 @@ async function submit(page: Page) {
   const response = await responsePromise
   expect(response.ok()).toBe(true)
   expect(await response.json()).toEqual({ success: true, data: { submitted: true } })
-  await expect(page.getByRole('heading', { name: 'Ballot submitted' })).toBeVisible()
+  // With a partner still to vote this shows "Ballot submitted". When this vote
+  // completes the round (the demo partner, or the second player) the app goes
+  // straight to the result, and whether the sealed screen flashes first is a
+  // timing detail, so either screen means the ballot was accepted.
+  await expect(
+    page.getByRole('heading', { name: 'Ballot submitted' }).or(page.getByTestId('reveal-card')),
+  ).toBeVisible()
 }
 
 test('desktop players save preferences, vote privately, and see live readiness', async ({ users }) => {
@@ -63,8 +69,9 @@ test('desktop players save preferences, vote privately, and see live readiness',
     .toHaveAttribute('aria-pressed', 'false')
   await chooseAllFilms(guest.page, 'Maybe')
   await submit(guest.page)
-  await expect(host.page.getByText('Both ballots are in.')).toBeVisible()
-  await expect(guest.page.getByText('Both ballots are in.')).toBeVisible()
+  // Once both ballots are in, both players are taken to the result.
+  await expect(host.page.getByTestId('reveal-card')).toBeVisible()
+  await expect(guest.page.getByTestId('reveal-card')).toBeVisible()
 })
 
 // Ballot privacy itself (clients cannot read `ballots`, outsiders cannot submit)
@@ -81,5 +88,5 @@ test('a phone-sized demo room reaches both ballots in', async ({ users }) => {
   await expect(page.locator('.df-round-grid')).toHaveCSS('grid-template-columns', /^\d+(\.\d+)?px$/)
   await chooseAllFilms(page, 'Want to watch')
   await submit(page)
-  await expect(page.getByText('Both ballots are in.')).toBeVisible()
+  await expect(page.getByTestId('reveal-card')).toBeVisible()
 })

@@ -20,3 +20,7 @@ export function botVotes(shortlist: readonly { id: string }[]): Votes {
     return [id, demoProfile[(hash >>> 0) % demoProfile.length]]
   }))
 }
+
+export const voteLabels: Record<Vote, string> = {
+  want: 'Want to watch', maybe: 'Maybe', pass: 'Pass', seen: 'Already seen',
+}

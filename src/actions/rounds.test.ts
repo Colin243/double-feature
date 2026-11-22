@@ -101,7 +101,10 @@ describe('openSetupRound', () => {
     const room = setup()
     expect(await room.run()).toEqual({ success: true, data: { roundId } })
     expect(room.tools.get).toHaveBeenCalledWith('rooms', roomId)
-    expect(room.tools.query).toHaveBeenCalledWith('rounds', { where: { roomId, number: 1 }, limit: 1 })
+    // It looks up the room's latest round, then creates round number 1.
+    expect(room.tools.query).toHaveBeenCalledWith('rounds', {
+      where: { roomId }, orderBy: 'number', orderDir: 'desc', limit: 1,
+    })
     expect(room.tools.create).toHaveBeenCalledWith('rounds', {
       roomId, number: 1, status: 'setup', memberIds: ['host', 'guest'],
       hostMoods: [], guestMoods: [], hostRuntime: 0, guestRuntime: 0,
