@@ -16,6 +16,7 @@ type Round = {
   hostRuntime: RuntimeLimit
   guestRuntime: RuntimeLimit
   shortlist: Film[]
+  inputs?: { runtimeLimitIgnored?: boolean }
   submittedHost: boolean
   submittedGuest: boolean
 }
@@ -242,6 +243,9 @@ function Voting({ round, roundId, isHost }: { round: Round; roundId: string; isH
   return (
     <>
       <div className="df-progress"><strong>{index + 1} of {round.shortlist.length} films</strong><span>Private vote</span></div>
+      {round.inputs?.runtimeLimitIgnored && (
+        <p role="status">No films fit your runtime limit, so these are the closest options.</p>
+      )}
       <div className="df-round-grid">
         <article className="df-panel df-film">
           <picture>

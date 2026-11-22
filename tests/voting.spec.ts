@@ -67,7 +67,10 @@ test('desktop players save preferences, vote privately, and see live readiness',
   await expect(guest.page.getByText('Both ballots are in.')).toBeVisible()
 })
 
-test('a phone-sized demo room reaches both ready without exposing votes', async ({ users }) => {
+// Ballot privacy itself (clients cannot read `ballots`, outsiders cannot submit)
+// is covered by the ballot-privacy tests, not here. This one checks the phone
+// layout and that a solo demo room reaches "both ballots in".
+test('a phone-sized demo room reaches both ballots in', async ({ users }) => {
   const [host] = await users(1)
   const { page } = host
   await page.setViewportSize({ width: 390, height: 844 })

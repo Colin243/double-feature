@@ -14,7 +14,9 @@ Target design that every PR spec in `docs/prs/` builds against. Where it differs
 
 Action results use the platform shape: `{ success: true, data }` or `{ success: false, error: '<code>' }`.
 
-Error codes: `invalid_input`, `room_not_found`, `room_full`, `own_room`, `not_member`, `not_host`, `round_not_found`, `wrong_status`, `ballot_invalid`, `ballot_locked`, `rate_limited`, `discovery_failed`. Infrastructure failures from the rooms PR: `room_create_failed`, `room_lookup_failed`, `room_update_failed`, `seat_claim_failed`.
+Error codes: `invalid_input`, `room_not_found`, `room_full`, `own_room`, `not_member`, `not_host`, `round_not_found`, `wrong_status`, `ballot_invalid`, `ballot_locked`, `rate_limited`, `discovery_failed`. Infrastructure failures from the rooms PR: `room_create_failed`, `room_lookup_failed`, `room_update_failed`, `seat_claim_failed`. From the voting PR: `round_create_failed`, `round_lookup_failed`, `round_update_failed`, `ballot_lookup_failed`, `ballot_save_failed`.
+
+**Round actions as built (voting PR).** Round creation is split in two: `openSetupRound({ roomId })` (host) creates round 1 in `setup` status with an empty shortlist, then `startRound({ roomId, brief? })` (host) locks the brief and shortlist and moves it to `voting`. `setMood`, `startRound` and `submitBallot` run one at a time inside the RecordRoom Durable Object (a per-instance queue), because the action tools have no transactions and each of these reads then writes. The router signs the request body with an app secret and the Durable Object rejects anything unsigned. Only round number 1 exists so far; a "start another round" flow (reveal and ratings PRs) needs `number` to become dynamic. `rounds.inputs.runtimeLimitIgnored` is true when no film fit the chosen runtime limit and the shortlist fell back to all films.
 
 ## Film
 

@@ -1,3 +1,4 @@
+import { RECORD_NOT_FOUND } from 'deepspace/worker'
 import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { seedFilms } from '../lib/films'
@@ -24,7 +25,7 @@ export const openSetupRound: ActionHandler<Env> = async ({ userId, params, tools
   if (!found.success) {
     return {
       success: false,
-      error: found.error === 'Record not found' ? 'room_not_found' : 'room_lookup_failed',
+      error: found.error === RECORD_NOT_FOUND ? 'room_not_found' : 'room_lookup_failed',
     }
   }
 
@@ -88,7 +89,7 @@ export const setMood: ActionHandler<Env> = async ({ userId, params, tools }) => 
 
   const found = await tools.get<Round>('rounds', roundId)
   if (!found.success) {
-    return { success: false, error: found.error === 'Record not found' ? 'round_not_found' : 'round_lookup_failed' }
+    return { success: false, error: found.error === RECORD_NOT_FOUND ? 'round_not_found' : 'round_lookup_failed' }
   }
   const round = found.data.record.data
   if (!round.memberIds.includes(userId)) return { success: false, error: 'not_member' }
@@ -118,7 +119,7 @@ export const startRound: ActionHandler<Env> = async ({ userId, params, tools }) 
   const { roomId, brief } = params
   const room = await tools.get<ReadyRoom>('rooms', roomId)
   if (!room.success) {
-    return { success: false, error: room.error === 'Record not found' ? 'room_not_found' : 'room_lookup_failed' }
+    return { success: false, error: room.error === RECORD_NOT_FOUND ? 'room_not_found' : 'room_lookup_failed' }
   }
   if (room.data.record.data.hostId !== userId) return { success: false, error: 'not_host' }
   if (room.data.record.data.status !== 'ready') return { success: false, error: 'wrong_status' }
@@ -133,12 +134,17 @@ export const startRound: ActionHandler<Env> = async ({ userId, params, tools }) 
   if (round.status !== 'setup') return { success: false, error: 'wrong_status' }
 
   const preferences = [round.hostMoods, round.guestMoods, round.hostRuntime, round.guestRuntime] as const
-  const inputs = combineMoods(...preferences)
+  const preferred = combineMoods(...preferences)
+  // rankSeedFilms falls back to every film when none fit the runtime limit.
+  // Record that, so the vote screen can say the limit was not applied instead
+  // of leaving a brief that still reads "under 100 minutes".
+  const runtimeLimitIgnored = preferred.maxRuntime > 0 &&
+    !seedFilms.some(film => film.runtimeMinutes < preferred.maxRuntime)
   const saved = await tools.update('rounds', record.recordId, {
     status: 'voting',
     brief: typeof brief === 'string' && brief.trim() ? brief.trim() : buildBrief(...preferences),
-    shortlist: rankSeedFilms(seedFilms, inputs.moods, inputs.maxRuntime),
-    inputs,
+    shortlist: rankSeedFilms(seedFilms, preferred.moods, preferred.maxRuntime),
+    inputs: { ...preferred, runtimeLimitIgnored },
   })
   return saved.success ? result : { success: false, error: 'round_update_failed' }
 }

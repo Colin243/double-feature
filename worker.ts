@@ -26,7 +26,13 @@ import { tasks as cronTasks, runTask as runCronTask } from './src/cron.js'
 import { runJob } from './src/jobs.js'
 import { schemas } from './src/schemas.js'
 import { actions } from './src/actions/index.js'
-import { isRoundMutation, RoundMutationQueue, roundMutationPath } from './src/server/round-mutations.js'
+import {
+  hasValidRoundMutationSignature,
+  isRoundMutation,
+  RoundMutationQueue,
+  roundMutationPath,
+  roundMutationSignatureHeader,
+} from './src/server/round-mutations.js'
 import { createActionTools, registerActionRoutes } from './src/server/action-routes.js'
 import {
   registerAuthAndIntegrationRoutes,
@@ -57,11 +63,19 @@ export class AppRecordRoom extends RecordRoom<Env> {
       return new Response('Not found', { status: 404 })
     }
 
-    const { name, userId, params } = await request.json<{
+    // The body names the acting user, so accept it only with a valid signature
+    // from the action router (same app secret, never exposed to clients).
+    const body = await request.text()
+    const signature = request.headers.get(roundMutationSignatureHeader) ?? ''
+    if (!(await hasValidRoundMutationSignature(this.env.APP_OWNER_JWT, body, signature))) {
+      return new Response('Forbidden', { status: 403 })
+    }
+
+    const { name, userId, params } = JSON.parse(body) as {
       name: string
       userId: string
       params: Record<string, unknown>
-    }>()
+    }
     if (!isRoundMutation(name)) return new Response('Not found', { status: 404 })
 
     return this.roundMutations.run(async () => {

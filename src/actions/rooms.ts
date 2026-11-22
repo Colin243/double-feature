@@ -1,3 +1,4 @@
+import { RECORD_NOT_FOUND } from 'deepspace/worker'
 import type { ActionHandler, ActionResult, ActionTools } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { generateInviteCode, normalizeInviteCode } from '../lib/invite-code'
@@ -103,7 +104,7 @@ export const addDemoPartner: ActionHandler<Env> = async ({ userId, params, tools
   if (!found.success) {
     return {
       success: false,
-      error: found.error === 'Record not found' ? 'room_not_found' : 'room_lookup_failed',
+      error: found.error === RECORD_NOT_FOUND ? 'room_not_found' : 'room_lookup_failed',
     }
   }
   const room = found.data.record.data

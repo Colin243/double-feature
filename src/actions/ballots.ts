@@ -1,3 +1,4 @@
+import { RECORD_NOT_FOUND } from 'deepspace/worker'
 import type { ActionHandler, ActionResult, ActionTools } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { botVotes, validateBallot } from '../lib/ballot'
@@ -17,7 +18,7 @@ async function saveBallotOnce(
   const id = ballotId(roundId, userId)
   const previous = await tools.get('ballots', id)
   if (previous.success) return { success: true, data: {} }
-  if (previous.error !== 'Record not found') return { success: false, error: 'ballot_lookup_failed' }
+  if (previous.error !== RECORD_NOT_FOUND) return { success: false, error: 'ballot_lookup_failed' }
 
   // The RecordRoom queue keeps the explicit-ID upsert behind the absence check.
   const saved = await tools.create('ballots', { roundId, userId, votes, lockedAt: Date.now() }, id)
@@ -32,7 +33,7 @@ export const submitBallot: ActionHandler<Env> = async ({ userId, params, tools }
   const { roundId, votes } = params
   const found = await tools.get<VotingRound>('rounds', roundId)
   if (!found.success) {
-    return { success: false, error: found.error === 'Record not found' ? 'round_not_found' : 'round_lookup_failed' }
+    return { success: false, error: found.error === RECORD_NOT_FOUND ? 'round_not_found' : 'round_lookup_failed' }
   }
   const round = found.data.record.data
   if (userId === 'bot' || !round.memberIds.includes(userId)) return { success: false, error: 'not_member' }

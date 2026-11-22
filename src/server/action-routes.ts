@@ -36,7 +36,12 @@ import {
 } from 'deepspace/worker'
 import type { ActionResult, ActionTools, VerifyResult } from 'deepspace/worker'
 import { actions } from '../actions/index.js'
-import { isRoundMutation, roundMutationPath } from './round-mutations.js'
+import {
+  isRoundMutation,
+  roundMutationPath,
+  roundMutationSignatureHeader,
+  signRoundMutation,
+} from './round-mutations.js'
 import { integrations } from '../integrations.js'
 import type { AppContext, Env } from '../../worker.js'
 
@@ -66,9 +71,13 @@ export function registerActionRoutes(app: Hono<AppContext>, resolveAuth: Resolve
     const params = await c.req.json<Record<string, unknown>>()
     if (isRoundMutation(name)) {
       const stub = appRecordRoom(c.env)
+      // The Durable Object trusts the userId in this body, so sign it. The DO
+      // verifies the signature with the same app secret before acting.
+      const body = JSON.stringify({ name, userId: auth.userId, params })
       return stub.fetch(new Request(`https://internal${roundMutationPath}`, {
         method: 'POST',
-        body: JSON.stringify({ name, userId: auth.userId, params }),
+        headers: { [roundMutationSignatureHeader]: await signRoundMutation(c.env.APP_OWNER_JWT, body) },
+        body,
       }))
     }
     const tools = createActionTools(c.env, auth.userId, callerJwt)
