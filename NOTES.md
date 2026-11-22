@@ -144,7 +144,8 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
   4. Replaced the `'Record not found'` string literal with the SDK's `RECORD_NOT_FOUND` constant.
   5. Renamed the phone e2e test, which claimed "without exposing votes" but only checked the UI. Ballot privacy itself is for the next PR.
 - **Verified by running:** `tsc` and eslint pass; 38 unit tests pass; 6 end-to-end tests pass locally (voting with two accounts, phone-sized demo room, plus the rooms tests), including the voting flow through the signed Durable Object path.
-- **Not verified:** deployed behavior. Adding `uniqueOn: ['roomId', 'number']` to the already-deployed `rounds` collection needs a deploy to confirm the platform accepts it. No test yet proves a client cannot read `ballots` or that an outsider cannot submit end to end (planned: ballot-privacy PR).
+- **Deployed and re-tested (release #4, Sun Nov 22):** after merging I deployed `main` and ran `tests/rooms.spec.ts` and `tests/voting.spec.ts` against https://double-feature.app.space with a temporary Playwright config (deleted, not committed). All 6 passed. The platform accepted the new `uniqueOn: ['roomId', 'number']` on the already-live `rounds` collection (no warnings or errors in production logs, and rounds were created). Production logs show the matching calls, all HTTP 200: 6 `createRoom`, 9 `joinRoom`, 2 `addDemoPartner`, 2 `openSetupRound`, 1 `setMood`, 2 `startRound`, 3 `submitBallot`. This also exercised the signed Durable Object write path in production (`APP_OWNER_JWT` signing worked). A public `POST /internal/round-mutation` returns 404. The first log query undercounted by a lot; log ingestion lagged by under a minute. The run left test rooms and rounds in the live data.
+- **Still not verified:** that a client cannot read `ballots` and that an outsider cannot submit, end to end (planned: ballot-privacy PR). Double-submit and bad-ballot rejection are unit-tested only, not exercised live.
 - **Known limits:** only round number 1 exists; votes live in React state until submitted, so a refresh mid-vote loses them; a second submit silently keeps the first ballot.
 
 ### Mon Nov 23: Rooms and private voting
@@ -167,7 +168,7 @@ _(fill in)_
 - [x] Guest joins by link; outsider cannot read the room (4 Playwright tests against the deployed app, release #3, Sun Nov 22)
 - [x] A third person cannot join a full room (same run; also two simultaneous joiners and a guest vs demo partner race, one winner each)
 - [ ] No account can read another's ballot via API or live subscription
-- [ ] Readiness updates live on both screens
+- [x] Readiness updates live on both screens (voting e2e test against the deployed app, release #4)
 - [ ] Double submit leaves the first ballot unchanged
 - [ ] Fake film ID or missing vote is rejected
 - [ ] Solo demo-partner path completes in under a minute
