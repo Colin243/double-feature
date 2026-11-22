@@ -98,8 +98,16 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
 - Docs summary said the Resend sender must be `<app-name>@app.space`; the live catalog says the sender is fixed and `from` is ignored.
 - No movie-metadata integration exists, so my earlier TMDB suggestion is dropped.
 
+**Deployed (Sun Nov 22)**
+- `npx deepspace app init --json` registered the app: `app_01M826EAJRSXZ2HE6ANS6RSN2K`. Committed the id in `wrangler.toml` before deploying.
+- `npx deepspace deploy` succeeded. Live at https://double-feature.app.space (HTTP 200, edge and data plane confirmed).
+- `deepspace app source` now reports `provider: github, repository: colin243/double-feature`. The first release latched GitHub as the source permanently, as planned.
+- Release #1 is recorded, with rollback available.
+- Still unchecked: sign-in on the live URL. I haven't done this myself yet.
+- Observation: the CLI login token expires after about 15 minutes, so long gaps need another `npx deepspace auth login`.
+
 **Next**
-- Register the app (`npx deepspace app init --json`), commit the minted app id, deploy an empty shell, confirm sign-in on the live URL.
+- Check sign-in on the live URL in a browser. Then the Monday work: schemas, `joinRoom`, `submitBallot`, three-account privacy test.
 
 ### Mon Nov 23: Rooms and private voting
 _(fill in)_
