@@ -49,7 +49,8 @@ export default function RoomPage() {
         <>
           <p role="status">{room.guestId === 'bot' ? 'Demo partner joined' : room.status === 'ready' ? 'Both players are here' : 'Waiting for your partner'}</p>
           {room.status === 'ready' && userId && (
-            <RoomRound roomId={roomId} isHost={room.hostId === userId} />
+            <RoomRound roomId={roomId} isHost={room.hostId === userId}
+              partnerLabel={room.guestId === 'bot' ? 'Demo partner' : 'Your partner'} />
           )}
           {room.hostId === userId && room.status === 'waiting' && (
             <>
