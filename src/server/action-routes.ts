@@ -36,6 +36,7 @@ import {
 } from 'deepspace/worker'
 import type { ActionResult, ActionTools, VerifyResult } from 'deepspace/worker'
 import { actions } from '../actions/index.js'
+import { isRoundMutation, roundMutationPath } from './round-mutations.js'
 import { integrations } from '../integrations.js'
 import type { AppContext, Env } from '../../worker.js'
 
@@ -63,14 +64,29 @@ export function registerActionRoutes(app: Hono<AppContext>, resolveAuth: Resolve
     const action = lookupOwn(actions, name)
     if (!action) return c.json({ error: 'Action not found' }, 404)
     const params = await c.req.json<Record<string, unknown>>()
+    if (isRoundMutation(name)) {
+      const stub = appRecordRoom(c.env)
+      return stub.fetch(new Request(`https://internal${roundMutationPath}`, {
+        method: 'POST',
+        body: JSON.stringify({ name, userId: auth.userId, params }),
+      }))
+    }
     const tools = createActionTools(c.env, auth.userId, callerJwt)
     const result = await action({ userId: auth.userId, params, tools, env: c.env, callerJwt })
     return c.json(result as unknown as Record<string, unknown>)
   })
 }
 
-function createActionTools(env: Env, userId: string, callerJwt: string): ActionTools {
-  const stub = env.RECORD_ROOMS.get(env.RECORD_ROOMS.idFromName(`app:${env.DEEPSPACE_APP_ID}`))
+function appRecordRoom(env: Env) {
+  return env.RECORD_ROOMS.get(env.RECORD_ROOMS.idFromName(`app:${env.DEEPSPACE_APP_ID}`))
+}
+
+export function createActionTools(
+  env: Env,
+  userId: string,
+  callerJwt: string,
+  dispatch = (request: Request) => appRecordRoom(env).fetch(request),
+): ActionTools {
 
   // The DO returns ActionResult<unknown>; callers below supply the precise
   // operation result type fixed by the SDK tools-api wire contract.
@@ -78,7 +94,7 @@ function createActionTools(env: Env, userId: string, callerJwt: string): ActionT
     tool: string,
     params: Record<string, unknown>,
   ): Promise<ActionResult<TData>> {
-    const res = await stub.fetch(
+    const res = await dispatch(
       new Request('https://internal/api/tools/execute', {
         method: 'POST',
         headers: {

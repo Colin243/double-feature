@@ -30,6 +30,7 @@ export const roundsSchema: CollectionSchema = {
     // JSON snapshot of what the shortlist was built from (exclusions, ratings used, fallback flag).
     { name: 'inputs', storage: 'text', interpretation: { kind: 'json' } },
   ],
+  uniqueOn: ['roomId', 'number'],
   collaboratorsField: 'memberIds',
   permissions: {
     '*': { read: false, create: false, update: false, delete: false },

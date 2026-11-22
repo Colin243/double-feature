@@ -23,17 +23,21 @@ Both people set a mood, the host starts a round, both vote on the locked shortli
 
 ## Action contracts
 
+The handlers need a setup round before either player can call `setMood`. Add a host-only setup action that opens or resumes the first round for a ready room. Then have `startRound` lock that same round with the shortlist and brief so it retains both players’ preferences.
+
+The first submission must win even if two requests arrive at the same time. The RecordRoom queue serializes the ballot lookup and write. The installed SDK upserts when given an explicit record ID, so only a confirmed missing ballot allows a write. A retry should repair the submitter’s readiness flag if the ballot was saved but the flag update failed.
+
 **`setMood({ roundId, moods, runtime })`**
 Member check. Round must be `setup`. Writes `hostMoods`/`hostRuntime` or the guest equivalents depending on the caller. Chips must be in the vocabulary. `invalid_input` otherwise.
 
 **`startRound({ roomId, brief? })`**
-Host only. Room must be `ready`. Creates the round: `number` = previous count + 1, `status = 'voting'`, `shortlist = rankSeedFilms(...)`, `brief` (edited text or built), flat readiness flags false, `memberIds` copied from the room. The shortlist and brief never change after this.
+Host only. Room must be `ready`. Locks the existing setup round by saving `status = 'voting'`, the ranked shortlist, and the edited or generated brief in one update. Repeated Start calls return the same round ID. The RecordRoom serializes Save and Start so a save ordered before Start contributes to the snapshot, and a save ordered after Start is rejected.
 
 **`submitBallot({ roundId, votes })`**
 1. Member check against the round's `memberIds` (the bot is not in it, so the human passes).
 2. Round `status === 'voting'` else `wrong_status`.
 3. `validateBallot` else `ballot_invalid`.
-4. Read the ballot at `ballotId(roundId, userId)`. If it exists and has `lockedAt`, return success without changing it (idempotent), never overwrite.
+4. Read the ballot at `ballotId(roundId, userId)`. If it exists, preserve it and continue to the readiness update so a retry can repair a partial submission.
 5. Write the ballot with `roundId`, `userId`, `votes`, `lockedAt = Date.now()`.
 6. Set the caller's flat flag (`submittedHost` or `submittedGuest`).
 7. If the room's `guestId === 'bot'`, also write the bot ballot from the seeded profile and set the bot's flag.
