@@ -1,13 +1,22 @@
 import { getAuthToken } from 'deepspace'
+import type { Votes } from './ballot'
+import type { Mood, RuntimeLimit } from './moods'
 
 type RoomActions = {
+  openSetupRound: { params: { roomId: string }; data: { roundId: string } }
+  setMood: { params: { roundId: string; moods: Mood[]; runtime: RuntimeLimit }; data: { saved: true } }
+  startRound: { params: { roomId: string; brief?: string }; data: { roundId: string } }
+  submitBallot: { params: { roundId: string; votes: Votes }; data: { submitted: true } }
   createRoom: { params: Record<string, never>; data: { roomId: string; inviteCode: string } }
   joinRoom: { params: { code: string }; data: { roomId: string } }
   addDemoPartner: { params: { roomId: string }; data: { roomId: string } }
 }
 
 const messages: Record<string, string> = {
-  invalid_input: 'Check your invite code and try again.',
+  invalid_input: 'Check your input and try again.',
+  wrong_status: 'This round has moved on.',
+  ballot_invalid: 'Choose one vote for every film before submitting.',
+  not_member: 'This round is unavailable to you.',
   own_room: 'You already host this room. Open it from your original room link.',
   room_full: 'This room already has a partner.',
   room_not_found: 'This room could not be found. Check the invite and try again.',

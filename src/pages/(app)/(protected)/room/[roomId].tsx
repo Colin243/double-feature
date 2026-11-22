@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth, useQuery } from 'deepspace'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui'
+import { RoomRound } from '@/components/RoomRound'
 import { roomAction } from '@/lib/room-actions'
 
 type Room = { hostId: string; guestId: string; inviteCode: string; status: 'waiting' | 'ready' }
@@ -39,7 +40,7 @@ export default function RoomPage() {
   }
 
   return (
-    <main className="mx-auto grid w-full max-w-lg gap-5 px-6 py-16">
+    <main className="mx-auto grid w-full max-w-[1200px] gap-5 px-4 py-8 sm:px-8">
       <h1 className="text-3xl font-semibold">Movie night room</h1>
       {status === 'loading' && <p role="status">Loading room…</p>}
       {status === 'error' && <p role="alert">Could not load the room.</p>}
@@ -47,6 +48,9 @@ export default function RoomPage() {
       {status === 'ready' && room && (
         <>
           <p role="status">{room.guestId === 'bot' ? 'Demo partner joined' : room.status === 'ready' ? 'Both players are here' : 'Waiting for your partner'}</p>
+          {room.status === 'ready' && userId && (
+            <RoomRound roomId={roomId} isHost={room.hostId === userId} />
+          )}
           {room.hostId === userId && room.status === 'waiting' && (
             <>
               <p>Invite code <strong>{room.inviteCode}</strong></p>
