@@ -41,9 +41,35 @@ Double Feature is a two-person movie-night app. Two people join one room, set a 
 | Solo review | Server-side demo-partner bot (`guestId = 'bot'`), not a user account | Guest sign-in isn't available and public signup is closed. |
 | Tie-break | Seeded shuffle keyed on round ID | Shortlist order would let the model's #1 pick win every tie. |
 
+## Integration catalog findings (checked with `npx deepspace integrations list`, Sun Nov 22)
+
+No movie-metadata integration exists (no TMDB/IMDb/OMDb). Relevant catalog entries:
+
+| Integration | Endpoint(s) | Use in Double Feature |
+|---|---|---|
+| `exa` | `search`, `contents`, `answer` | Find candidate films from the brief, with source links |
+| `anthropic` (also `openai`) | `chat-completion` | Rank candidates from the brief and past ratings; spoiler-free reasons |
+| `youtube` | `search-videos` (returns embed + thumbnail links) | Trailer on the reveal card. Also a poster/thumbnail source. |
+| `wikipedia` | `search-pages`, `get-page-summary` | Possible free metadata: year, summary |
+| `email` | `send` | Emailed invite link |
+| `gemini` / `openai` / `fal` | `generate-image` | Poster art fallback (probably not worth it) |
+
+Notes:
+- The `email/send` sender is fixed to `DeepSpace Apps <notifications@updates.app.space>` and any `from` value is ignored; use `reply_to`. **This contradicts the docs summary I was given earlier** (sender must be `<app-name>@app.space`). Trust the CLI listing, and re-check by sending one real test email.
+- Third integration candidate: **YouTube trailers** adds more to the reveal than email does. Email stays as a small optional item. Decide on Wednesday.
+- Movie metadata plan: skip a raw TMDB call. Use Exa + Wikipedia for facts, YouTube for visuals. Runtime filtering is the weak spot, since neither gives structured runtime reliably. Fall back to the seeded films' runtime data.
+
+## Scaffold findings (Sun Nov 22)
+
+- `npm create deepspace@latest .` scaffolded into this repo (starter template, DeepSpace 0.44.2). The repo's first commit and `origin` (GitHub) were already in place.
+- AGENTS.md says source authority latches **from the checkout's remote at the app's first release, permanently**. With a GitHub `origin` the deploy ships the current checkout, including dirty files, and records no commit lineage. So: keep `origin` pointed at GitHub, commit and push before first deploy, and never run `deepspace push`.
+- `wrangler.toml` has `DEEPSPACE_APP_ID = "__APP_ID__"` until `npx deepspace app init --json` runs. That id must be committed after it's minted.
+- Layout: schemas in `src/schemas.ts` and `src/schemas/`, actions in `src/actions/index.ts`, integrations and billing in `src/integrations.ts`, pages in `src/pages/`, worker in `worker.ts`.
+- Test command: `npm test` runs `deepspace test run`.
+
 ## Open questions
-- [ ] Is there a DeepSpace catalog integration for movie metadata (poster, runtime, ID)? Check `npx deepspace integrations list`. If not, either call TMDB from an action with the key in `deepspace secrets`, or skip posters.
-- [ ] Which third integration, if any, earns its place? The task says no minimum, but the bar box says three. Candidates: Exa, hosted model, Resend.
+- [x] Is there a catalog integration for movie metadata? No. See findings above.
+- [ ] Which third integration earns its place? Leading candidate: YouTube trailers. The task says no minimum, but the bar box says three.
 - [ ] Does `read: false` on a collection still allow actions to read it? Test early.
 - [ ] Does the OAuth flow return a guest to the join page after sign-in?
 
@@ -55,22 +81,25 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
 
 ### Sun Nov 22: Setup
 **Built**
-- Project folder and GitHub repo created.
+- Project folder, public GitHub repo, DeepSpace scaffold committed.
 - Plan agreed (see Scope and Key decisions).
 
 **Agent did**
 - Read the DeepSpace docs, skill repo and org examples and summarized permissions, server actions, real-time sync, integrations and deploy behavior.
 - Proposed the plan and data model above.
-- Created this file and the repo.
+- Created this file, the repo and the scaffold. Queried the integration and feature catalogs.
 
 **I verified / changed**
-- Pending: the docs summaries were second-hand. I still need to confirm permission and action behavior myself with real accounts.
+- I signed in to DeepSpace myself (browser OAuth).
+- The integration catalog and the CLI output are first-hand. The docs summaries are second-hand and still need confirming with real accounts.
+- One docs-summary claim was already wrong (email sender, see above).
 
 **Surprises and bugs**
-- None yet.
+- Docs summary said the Resend sender must be `<app-name>@app.space`; the live catalog says the sender is fixed and `from` is ignored.
+- No movie-metadata integration exists, so my earlier TMDB suggestion is dropped.
 
 **Next**
-- Scaffold with `npm create deepspace@latest`, sign in with `npx deepspace auth login`, deploy an empty shell, confirm sign-in on the live URL.
+- Register the app (`npx deepspace app init --json`), commit the minted app id, deploy an empty shell, confirm sign-in on the live URL.
 
 ### Mon Nov 23: Rooms and private voting
 _(fill in)_
