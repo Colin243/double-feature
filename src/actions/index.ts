@@ -2,6 +2,6 @@ import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { addDemoPartner, createRoom, joinRoom } from './rooms'
 import { openSetupRound, setMood, startRound } from './rounds'
-import { submitBallot } from './ballots'
+import { finalizeRoundAction, submitBallot } from './ballots'
 
-export const actions: Record<string, ActionHandler<Env>> = { createRoom, joinRoom, addDemoPartner, openSetupRound, setMood, startRound, submitBallot }
+export const actions: Record<string, ActionHandler<Env>> = { createRoom, joinRoom, addDemoPartner, openSetupRound, setMood, startRound, submitBallot, finalizeRound: finalizeRoundAction }

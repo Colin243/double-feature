@@ -27,14 +27,14 @@ Follow CONTRACTS exactly: eligibility, scores 3/2/1, tie-break by smallest `fnv1
 ## Why two racing finalizers are safe
 - The function is pure, so every caller computes identical output from identical ballots.
 - The result is written to the explicit id `result_<roundId>` with `uniqueOn: ['roundId']`, so a second write cannot create a duplicate row.
-- There is no transaction primitive. Do not invent one. Say this in the code comment and the writeup.
+- Both submission and explicit retry run through the same RecordRoom mutation queue. Two writes remain separate. If status fails after result creation, the next call reuses the saved result.
 
 ## Action flow (inside `submitBallot`, after both flags are true)
 1. Re-read both ballots with `tools.get` by id.
 2. If either is missing, return (not both in yet).
 3. Compute the result and write `results` with `ballots` included (receipts), `memberIds`, `outcome`, `filmId`, `score`, `reason`.
 4. Set round `status = 'revealed'`.
-5. If the result write fails with a duplicate error, treat it as success (the other caller won).
+5. On retry, use the existing deterministic result ID and finish the round status update.
 
 `finalizeRound` as an action does the same from step 1, for a manual retry if a client ever finds both flags true with no result.
 
