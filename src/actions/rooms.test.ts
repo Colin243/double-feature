@@ -138,6 +138,28 @@ describe('createRoom', () => {
     expect(create).toHaveBeenCalledTimes(2)
   })
 
+  it('still retries when only the tail of the SDK duplicate message changes', async () => {
+    const create = vi.fn()
+      .mockResolvedValueOnce({ success: false, error: 'Duplicate: a record with inviteCode=ZZZZZZZZ is taken' })
+      .mockResolvedValueOnce({ success: true, data: { recordId: roomId } })
+    const result = await actions.createRoom({
+      userId: hostId, params: {}, tools: { create } as unknown as ActionTools,
+      env: {} as Env, callerJwt: 'test',
+    })
+    expect(result.success).toBe(true)
+    expect(create).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not treat a duplicate on a different field as an invite-code collision', async () => {
+    const create = vi.fn().mockResolvedValue({ success: false, error: 'Duplicate: a record with hostId=host already exists in rooms' })
+    const result = await actions.createRoom({
+      userId: hostId, params: {}, tools: { create } as unknown as ActionTools,
+      env: {} as Env, callerJwt: 'test',
+    })
+    expect(result).toEqual({ success: false, error: 'room_create_failed' })
+    expect(create).toHaveBeenCalledTimes(1)
+  })
+
   it('stops after three collisions', async () => {
     const { run, create } = setupCreation(['collision', 'collision', 'collision'])
     expect(await run()).toEqual({ success: false, error: 'room_create_failed' })

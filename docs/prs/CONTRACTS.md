@@ -14,7 +14,7 @@ Target design that every PR spec in `docs/prs/` builds against. Where it differs
 
 Action results use the platform shape: `{ success: true, data }` or `{ success: false, error: '<code>' }`.
 
-Error codes: `invalid_input`, `room_not_found`, `room_full`, `own_room`, `not_member`, `not_host`, `round_not_found`, `wrong_status`, `ballot_invalid`, `ballot_locked`, `rate_limited`, `discovery_failed`.
+Error codes: `invalid_input`, `room_not_found`, `room_full`, `own_room`, `not_member`, `not_host`, `round_not_found`, `wrong_status`, `ballot_invalid`, `ballot_locked`, `rate_limited`, `discovery_failed`. Infrastructure failures from the rooms PR: `room_create_failed`, `room_lookup_failed`, `room_update_failed`, `seat_claim_failed`.
 
 ## Film
 
@@ -43,6 +43,7 @@ Every write goes through a server action (actions bypass RBAC, so each action ch
 | `rooms` | `hostId`, `guestId`, `inviteCode`, `status`, `memberIds` (JSON array) | `member: 'collaborator'` | `collaboratorsField: 'memberIds'`, `uniqueOn: ['inviteCode']`. **AMEND:** PR #2 has `member: read: true`, so any signed-in user could read every room and every invite code. Add `memberIds`, `uniqueOn`. |
 | `rounds` | `roomId`, `number`, `brief`, `shortlist` (JSON Film[]), `hostMoods`, `guestMoods`, `hostRuntime`, `guestRuntime`, `submittedHost`, `submittedGuest`, `status`, `memberIds`, `inputs` (JSON) | `'collaborator'` | **AMEND:** add `number`, `memberIds`, `inputs`; same read fix. |
 | `ballots` | `roundId`, `userId`, `votes` (JSON `{filmId: vote}`), `lockedAt` | none (`false` for every role) | **AMEND:** PR #2 has only `votes`, so actions cannot query ballots by round. Add `roundId`, `userId`, `lockedAt`. Record id = `ballotId(roundId, userId)`. |
+| `roomSeatClaims` | `roomId` (required), `guestId` (required) | none (`false` for every role) | `uniqueOn: ['roomId']`. Server-only. One row per room makes claiming the guest seat atomic: the first insert wins, a second insert for the same room fails with a duplicate error. The SDK must generate the record id (explicit ids upsert and would defeat the constraint). Added in the rooms PR. |
 | `results` | `roundId`, `outcome`, `filmId`, `score`, `reason`, `ballots` (JSON, both ballots, written only at reveal), `memberIds` | `'collaborator'` | Record id `result_<roundId>`, `uniqueOn: ['roundId']`. |
 | `ratings` | `userId`, `filmId`, `stars` (1-5), `tags` (JSON), `roomId` | `'own'` | Record id `<userId>_<filmId>`, `uniqueOn: ['userId','filmId']`. Bot rows use `userId = 'bot'`. |
 | `trailers` (PR 9) | `filmId`, `embedUrl`, `title` | `member: true` | Record id = `filmId`. Cache so each film costs one YouTube call. |

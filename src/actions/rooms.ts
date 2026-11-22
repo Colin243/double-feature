@@ -64,10 +64,13 @@ export const createRoom: ActionHandler<Env> = async ({ userId, params, tools }) 
       return { success: true, data: { roomId: result.data.recordId, inviteCode } }
     }
 
-    // The installed RecordRoom SDK returns this error for the unique inviteCode.
-    if (result.error !== `Duplicate: a record with inviteCode=${inviteCode} already exists in rooms`) {
-      break
-    }
+    // The RecordRoom SDK reports a uniqueOn conflict as "Duplicate: a record with
+    // <field>=<value> already exists in <collection>". Match the stable prefix and
+    // the field name (not the whole sentence) so a wording change in the tail
+    // does not turn a retryable collision into a hard failure.
+    const collided = typeof result.error === 'string' &&
+      result.error.startsWith('Duplicate:') && result.error.includes('inviteCode=')
+    if (!collided) break
   }
 
   return { success: false, error: 'room_create_failed' }
