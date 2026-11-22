@@ -61,3 +61,11 @@ Integration: both submit at the same moment on the deployed app, then exactly on
 
 ## Not in this PR
 Reveal UI (PR 6), ratings (PR 7).
+
+## As built
+- `src/lib/finalize.ts` (`finalizeRound`, `fnv1a`) and `src/lib/finalize.test.ts`: the scoring rules in CONTRACTS, with unit tests for score ordering, vetoes, closest calls, `none`, and tie-break independence from shortlist order.
+- `src/schemas/results.ts` and the `results` registration. `uniqueOn: ['roundId']`, member-only reads.
+- `submitBallot` finalizes when both ready flags are set; `finalizeRound` is exposed as an action for retries and runs inside the same one-at-a-time Durable Object queue as the other round writes.
+- End-to-end (`tests/ballot-privacy.spec.ts`): one ballot publishes no result; simultaneous ballots publish exactly one result with the same content for both players; an outsider cannot read it.
+- Checked against the real local platform with a throwaway probe: both players passing and a `seen` vote each give `none`, and an equal-score tie picks the film the hash rule predicts.
+- Not in this PR: any reveal screen (the next PR).

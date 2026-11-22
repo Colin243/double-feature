@@ -164,6 +164,16 @@ Format for each day: **Built**, **Agent did**, **I verified / changed**, **Surpr
 - **Not covered, on purpose:** the spec's admin read case (no admin test account exists; the platform owner is the only admin, so the permission matrix is checked statically instead). Same user submitting twice with different votes (the stored ballot is not observable from a client; covered by a unit test only). "Exactly one result" under simultaneous submits waits for the reveal PR.
 - The deployed run created more test rooms and rounds in the live data and attempted forged writes against production; all were refused and production logs show no warnings or errors.
 
+**Direct HTTP ballot reads (PR #16) and reveal logic (PR #6, `feat/reveal-logic`)**
+- **PR #16 (Codex, reviewed by me):** one new end-to-end test through the app's HTTP agent-tools endpoint (`/_deepspace/agent/browser/tools/<name>`), a read surface my WebSocket tests did not cover. Listing `ballots` returns nothing and reading one ballot is denied, for both players, with a control read of the round. I mutation-checked it (making `ballots` readable made it fail), and it passes locally and against the deployed app (release #4).
+- **A property worth knowing:** a denied read of one specific ballot (HTTP 422, `READ DENIED`) differs from "not found", because the SDK checks existence before permission. So someone who already knows a round id and a user id can tell whether that player has submitted. Members already see that through the ready flags and an outsider cannot guess the ids, so I judge the risk low and I am not fixing it. The test also pins SDK internals (the 422 and the message text), so an SDK upgrade could break it. Forged writes through the same HTTP tools are not covered yet (follow-up).
+- **PR #6 (Codex, reviewed by me):** `finalizeRound` (pure, `src/lib/finalize.ts`), the `results` collection (`uniqueOn: ['roundId']`, member-only reads) and finalizing inside `submitBallot` once both ready flags are set. I read the scoring against `CONTRACTS.md` line by line and it matches: matches score 3/2/1, `pass` or `seen` vetoes, closest-call points 2/1/0 with a `seen` exclusion and a sum above 0, ties by the smallest FNV-1a hash of `roundId:filmId`, so shortlist order never decides.
+- **Why concurrent submits are safe:** `submitBallot` and `finalizeRound` run inside the one-at-a-time Durable Object queue, the result id is explicit (`result_<roundId>`), the result is saved before the round is marked `revealed` (a retry after a partial failure reuses the stored result), and `uniqueOn` is the backstop.
+- **Verified by running (local):** `tsc` and eslint pass; unit tests for scoring, vetoes, closest calls, `none` and tie-break independence; 8 end-to-end privacy tests including "one ballot publishes no result" and "simultaneous ballots publish exactly one shared result, hidden from an outsider". A throwaway probe against the real local platform (deleted) showed both-pass and one-`seen` give `none`, and an equal-score tie picks the film the hash rule predicts.
+- **Review fixes:** the PR description still said "spec only" and there was no notes entry; `CONTRACTS.md` lacked the `finalizeRound` action, the new error codes (`ballots_pending`, `result_lookup_failed`, `result_save_failed`), and the `results.ballots` shape (`{ hostVotes, guestVotes }`). I added those plus a closest-call tie test.
+- **Gotcha for the reveal screen:** for outcome `none` the live read has **no `filmId` field** (stored as null), so the UI must treat a missing film as "no match".
+- **Not verified:** the reveal on the deployed app (this PR is not deployed yet), and any screen that shows the result. The reason text says "the host" and "the guest", not display names.
+
 ### Mon Nov 23: Rooms and private voting
 _(fill in)_
 
@@ -188,9 +198,9 @@ _(fill in)_
 - [ ] Double submit leaves the first ballot unchanged
 - [x] Fake film ID or missing vote is rejected (5 malformed ballots plus null and extra-key calls, deployed release #4; a valid ballot still succeeds afterwards)
 - [ ] Solo demo-partner path completes in under a minute
-- [ ] Reveal tie-break is deterministic and identical on both screens
+- [ ] Reveal tie-break is deterministic and identical on both screens (deterministic: verified by unit tests and a real-platform probe; "both screens" waits for the reveal screen PR)
 - [ ] No-match round handled
-- [ ] Simultaneous submits produce exactly one result
+- [x] Simultaneous submits produce exactly one result (end-to-end test and unit test, local; not yet checked on the deployed app)
 - [ ] Rating edit is saved once and changes the next recommendation input
 - [ ] Already-seen film never reappears
 - [ ] Mobile layout checked on a phone

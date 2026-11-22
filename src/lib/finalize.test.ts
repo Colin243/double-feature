@@ -27,6 +27,16 @@ describe('finalizeRound', () => {
       .toEqual({ outcome: 'closest', filmId: 'b', score: 2, reason: 'The host passed and the guest wanted to watch it.' })
   })
 
+  it('breaks closest-call ties by the same hash rule, independent of shortlist order', () => {
+    // Both films are want/pass (2 points each), so only the hash can decide.
+    const host = { a: 'want', b: 'pass' } as const
+    const guest = { a: 'pass', b: 'want' } as const
+    const first = score(host, guest, ['a', 'b'], 'round')
+    expect(first.outcome).toBe('closest')
+    expect(first.filmId).toBe(fnv1a('round:a') < fnv1a('round:b') ? 'a' : 'b')
+    expect(score(host, guest, ['b', 'a'], 'round')).toEqual(first)
+  })
+
   it('returns none for an empty shortlist, seen films, and mutual passes', () => {
     expect(score({}, {})).toMatchObject({ outcome: 'none', filmId: null, score: 0 })
     expect(score({ a: 'pass', b: 'seen' }, { a: 'pass', b: 'want' }))
