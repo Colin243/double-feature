@@ -13,11 +13,16 @@ const roundId = 'round-one'
 function setup(guestId = 'guest', status = 'ready') {
   const memberIds = guestId === 'bot' ? ['host'] : ['host', guestId]
   let saved: Record<string, unknown> | undefined
+  const results = new Map<string, Record<string, unknown>>()
   const ballots = new Map<string, Record<string, unknown>>()
   const record = (recordId: string, data: Record<string, unknown>) => ({
     recordId, data, createdBy: 'host', createdAt: '', updatedAt: '',
   })
   const create = vi.fn(async (collection: string, data: Record<string, unknown>, id?: string) => {
+    if (collection === 'results' && id) {
+      results.set(id, structuredClone(data))
+      return { success: true, data: { recordId: id } }
+    }
     if (collection === 'ballots' && id) {
       // Mirror the SDK's explicit-ID upsert, including the risk of overwrites.
       ballots.set(id, structuredClone(data))
@@ -28,8 +33,15 @@ function setup(guestId = 'guest', status = 'ready') {
     return { success: true, data: { recordId: roundId } }
   })
   let failNextUpdate = false
+  let failReveal = false
   const tools = {
     get: vi.fn(async (collection: string, id: string) => {
+      if (collection === 'results') {
+        const result = results.get(id)
+        return result
+          ? { success: true, data: { record: record(id, result) } }
+          : { success: false, error: 'Record not found' }
+      }
       if (collection === 'ballots') {
         const ballot = ballots.get(id)
         return ballot
@@ -52,7 +64,8 @@ function setup(guestId = 'guest', status = 'ready') {
     })),
     create,
     update: vi.fn(async (_collection: string, _id: string, patch: Record<string, unknown>) => {
-      if (failNextUpdate) {
+      if (failNextUpdate || (failReveal && patch.status === 'revealed')) {
+        failReveal = false
         failNextUpdate = false
         return { success: false, error: 'injected update failure' }
       }
@@ -67,6 +80,10 @@ function setup(guestId = 'guest', status = 'ready') {
     tools,
     saved: () => saved,
     ballots,
+    results,
+    failReveal: () => { failReveal = true },
+    finalize: (userId = 'host') =>
+      queue.run(() => run('finalizeRound', userId, { roundId })),
     failUpdate: () => { failNextUpdate = true },
     submit: (userId: string, votes: unknown) =>
       queue.run(() => run('submitBallot', userId, { roundId, votes })),
@@ -221,5 +238,57 @@ describe('private ballot submission', () => {
     expect(await room.submit('outsider', votes('want'))).toEqual({ success: false, error: 'not_member' })
     expect(await room.submit('host', {})).toEqual({ success: false, error: 'ballot_invalid' })
     expect(room.ballots.size).toBe(0)
+  })
+})
+
+describe('round reveal', () => {
+  async function setupVoting() {
+    const room = setup()
+    await room.run()
+    await room.start()
+    const shortlist = room.saved()?.shortlist as { id: string }[]
+    const votes = Object.fromEntries(shortlist.map(({ id }) => [id, 'want']))
+    return { room, votes }
+  }
+
+  it('requires both ballots and rejects an outsider before publishing', async () => {
+    const { room, votes } = await setupVoting()
+    await room.submit('host', votes)
+    expect(await room.finalize()).toEqual({ success: false, error: 'ballots_pending' })
+    expect(await room.finalize('outsider')).toEqual({ success: false, error: 'not_member' })
+    expect(room.results.size).toBe(0)
+    expect(room.saved()?.status).toBe('voting')
+  })
+
+  it('writes one member-scoped result on simultaneous submissions and never rewrites it', async () => {
+    const { room, votes } = await setupVoting()
+    expect(isRoundMutation('finalizeRound')).toBe(true)
+    const submitted = { success: true, data: { submitted: true } }
+    expect(await Promise.all([room.submit('host', votes), room.submit('guest', votes)]))
+      .toEqual([submitted, submitted])
+    const id = `result_${roundId}`
+    const savedResult = room.results.get(id)
+    expect(savedResult).toMatchObject({
+      roundId, outcome: 'match', score: 3, memberIds: ['host', 'guest'],
+      ballots: { hostVotes: votes, guestVotes: votes },
+    })
+    expect(room.saved()?.status).toBe('revealed')
+    expect(await room.submit('guest', votes)).toEqual(submitted)
+    expect(await room.finalize('guest')).toEqual({ success: true, data: { revealed: true } })
+    expect(room.results.size).toBe(1)
+    expect(room.results.get(id)).toBe(savedResult)
+  })
+
+  it('finishes an interrupted reveal without rewriting the stored result', async () => {
+    const { room, votes } = await setupVoting()
+    await room.submit('host', votes)
+    room.failReveal()
+    expect(await room.submit('guest', votes)).toEqual({ success: false, error: 'round_update_failed' })
+    const stored = room.results.get(`result_${roundId}`)
+    expect(stored).toBeDefined()
+    expect(room.saved()?.status).toBe('voting')
+    expect(await room.finalize()).toEqual({ success: true, data: { revealed: true } })
+    expect(room.results.get(`result_${roundId}`)).toBe(stored)
+    expect(room.saved()?.status).toBe('revealed')
   })
 })

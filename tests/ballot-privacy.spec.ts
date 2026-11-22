@@ -179,9 +179,24 @@ test('only the host can open or start a round', async ({ users }) => {
   expect((await act(guest, 'addDemoPartner', { roomId })).body.error).toBe('not_host')
 })
 
-test('simultaneous ballots from both players are both accepted and both flags land', async ({ users }) => {
+test('one ballot does not publish a reveal result', async ({ users }) => {
   const [hostUser, guestUser] = await users(2)
   const [host, guest] = await Promise.all([player(hostUser.page), player(guestUser.page)])
+  const { roundId, shortlist } = await votingRound(host, guest)
+  expect((await act(host, 'submitBallot', { roundId, votes: ballotOf(shortlist, 'want') })).body)
+    .toEqual({ success: true, data: { submitted: true } })
+  expect((await act(host, 'finalizeRound', { roundId })).body)
+    .toEqual({ success: false, error: 'ballots_pending' })
+  for (const who of [host, guest]) {
+    const seen = await liveQuery(who.page, who.token, 'results')
+    expect(seen.errors).toEqual([])
+    expect(seen.records.some(record => record.data.roundId === roundId)).toBe(false)
+  }
+})
+
+test('simultaneous ballots publish exactly one shared result', async ({ users }) => {
+  const [hostUser, guestUser, outsiderUser] = await users(3)
+  const [host, guest, outsider] = await Promise.all([player(hostUser.page), player(guestUser.page), player(outsiderUser.page)])
   const { roundId, shortlist } = await votingRound(host, guest)
 
   const [fromHost, fromGuest] = await Promise.all([
@@ -191,13 +206,28 @@ test('simultaneous ballots from both players are both accepted and both flags la
   expect(fromHost.body).toEqual({ success: true, data: { submitted: true } })
   expect(fromGuest.body).toEqual({ success: true, data: { submitted: true } })
 
+  const sharedResults = []
   for (const who of [host, guest]) {
     const rounds = await liveQuery(who.page, who.token, 'rounds')
     const round = rounds.records.find(record => record.recordId === roundId)
     // A raw socket returns the number-stored flags as 1/0; the app's client turns them into booleans.
     expect(Boolean(round?.data.submittedHost)).toBe(true)
     expect(Boolean(round?.data.submittedGuest)).toBe(true)
+    expect(round?.data.status).toBe('revealed')
+    const seen = await liveQuery(who.page, who.token, 'results')
+    expect(seen.errors).toEqual([])
+    const results = seen.records.filter(record => record.data.roundId === roundId)
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({
+      recordId: `result_${roundId}`,
+      data: { outcome: 'closest', score: 2, filmId: expect.any(String) },
+    })
+    sharedResults.push(results[0].data)
   }
+  expect(sharedResults[0]).toEqual(sharedResults[1])
+  const hidden = await liveQuery(outsider.page, outsider.token, 'results')
+  expect(hidden.errors).toEqual([])
+  expect(hidden.records.some(record => record.data.roundId === roundId)).toBe(false)
 })
 
 test('malformed ballots are rejected without locking the player out', async ({ users }) => {

@@ -14,6 +14,7 @@ import { roomsSchema } from './schemas/rooms'
 import { roomSeatClaimsSchema } from './schemas/room-seat-claims'
 import { roundsSchema } from './schemas/rounds'
 import { ballotsSchema } from './schemas/ballots'
+import { resultsSchema } from './schemas/results'
 
 export const schemas: CollectionSchema[] = [
   usersSchema,
@@ -22,4 +23,5 @@ export const schemas: CollectionSchema[] = [
   roomSeatClaimsSchema,
   roundsSchema,
   ballotsSchema,
+  resultsSchema,
 ]
