@@ -1,6 +1,6 @@
 # PR 2: Rooms and invites
 
-**Branch:** `feat/rooms-invite` · **Depends on:** schemas PR (#2) with the CONTRACTS amendments · **Estimate:** 3 h · **Day:** Mon Nov 23
+**Branch:** `feat/rooms-invite` · **Depends on:** merged schemas PR (#2) · **Estimate:** 3 h · **Day:** Mon Nov 23
 
 Contracts: [CONTRACTS.md](./CONTRACTS.md)
 
@@ -35,7 +35,7 @@ A signed-in host creates a room and shares a link. A second signed-in person joi
 1. Caller must be the host (`not_host`), room must be `waiting` (`room_full` otherwise).
 2. Set `guestId = 'bot'`, `status = 'ready'`. `memberIds` stays `[hostId]` (the bot is not a user).
 
-Join and demo-partner updates read-then-write, so two simultaneous joiners could both pass step 4. Mitigate by re-reading after the write and returning `room_full` to whichever caller no longer matches `guestId`. Log what you observe in `NOTES.md`.
+Both actions first insert a server-only `roomSeatClaims` row with `uniqueOn: ['roomId']`. The SDK generates the record ID because explicit IDs upsert. The winning claimant applies the room update. A repeat by that claimant can finish an interrupted update. Other claimants receive `room_full`.
 
 ## UI
 - Home: "Create a room" and "Join with a code". Signed-out visitors see sign-in first.
@@ -49,6 +49,7 @@ Join and demo-partner updates read-then-write, so two simultaneous joiners could
 - Third user gets `room_full`; host joining own room gets `own_room`; bad code gets `room_not_found` or `invalid_input`.
 - Outsider cannot read the room (client query returns nothing).
 - Repeat join by the same guest is a no-op success.
+- Concurrent guest-vs-guest and guest-vs-bot attempts produce one winner, including when the winning room update needs a retry.
 - Demo partner: host only; sets `guestId = 'bot'`.
 
 ## Acceptance
