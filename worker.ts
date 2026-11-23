@@ -25,7 +25,15 @@ import { buildTools } from './src/ai/tools.js'
 import { tasks as cronTasks, runTask as runCronTask } from './src/cron.js'
 import { runJob } from './src/jobs.js'
 import { schemas } from './src/schemas.js'
-import { registerActionRoutes } from './src/server/action-routes.js'
+import { actions } from './src/actions/index.js'
+import {
+  hasValidRoundMutationSignature,
+  isRoundMutation,
+  RoundMutationQueue,
+  roundMutationPath,
+  roundMutationSignatureHeader,
+} from './src/server/round-mutations.js'
+import { createActionTools, registerActionRoutes } from './src/server/action-routes.js'
 import {
   registerAuthAndIntegrationRoutes,
   registerPlatformProxyRoutes,
@@ -45,6 +53,38 @@ export const __DO_MANIFEST__ = [
 ] as const satisfies DOManifest
 
 export class AppRecordRoom extends RecordRoom<Env> {
+  private readonly roundMutations = new RoundMutationQueue()
+
+  override async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    if (url.pathname !== roundMutationPath) return super.fetch(request)
+    // Only the authenticated action router sends this private DO request.
+    if (url.hostname !== 'internal' || request.method !== 'POST') {
+      return new Response('Not found', { status: 404 })
+    }
+
+    // The body names the acting user, so accept it only with a valid signature
+    // from the action router (same app secret, never exposed to clients).
+    const body = await request.text()
+    const signature = request.headers.get(roundMutationSignatureHeader) ?? ''
+    if (!(await hasValidRoundMutationSignature(this.env.APP_OWNER_JWT, body, signature))) {
+      return new Response('Forbidden', { status: 403 })
+    }
+
+    const { name, userId, params } = JSON.parse(body) as {
+      name: string
+      userId: string
+      params: Record<string, unknown>
+    }
+    if (!isRoundMutation(name)) return new Response('Not found', { status: 404 })
+
+    return this.roundMutations.run(async () => {
+      const tools = createActionTools(this.env, userId, '', request => super.fetch(request))
+      const result = await actions[name]({ userId, params, tools, env: this.env, callerJwt: '' })
+      return Response.json(result)
+    })
+  }
+
   constructor(state: DurableObjectState, env: Env) {
     super(state, env, schemas, { ownerUserId: env.OWNER_USER_ID })
   }
