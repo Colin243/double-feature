@@ -17,7 +17,7 @@ type Round = {
   hostRuntime: RuntimeLimit
   guestRuntime: RuntimeLimit
   shortlist: Film[]
-  inputs?: { runtimeLimitIgnored?: boolean }
+  inputs?: { runtimeLimitIgnored?: boolean; personalized?: boolean }
   submittedHost: boolean
   submittedGuest: boolean
 }
@@ -54,9 +54,10 @@ function RoundShell({ children }: { children: ReactNode }) {
   )
 }
 
-export function RoomRound({ roomId, isHost, partnerLabel = 'Your partner' }: {
+export function RoomRound({ roomId, isHost, isDemo = false, partnerLabel = 'Your partner' }: {
   roomId: string
   isHost: boolean
+  isDemo?: boolean
   partnerLabel?: string
 }) {
   // Always show the room's latest round: a new round opens after a reveal.
@@ -82,7 +83,7 @@ export function RoomRound({ roomId, isHost, partnerLabel = 'Your partner' }: {
   return (
     <RoundShell>
       {round.data.status === 'setup'
-        ? <MoodSetup key={round.recordId} round={round.data} roundId={round.recordId} roomId={roomId} isHost={isHost} />
+        ? <MoodSetup key={round.recordId} round={round.data} roundId={round.recordId} roomId={roomId} isHost={isHost} isDemo={isDemo} />
         : round.data.status === 'revealed'
           ? <RoundReveal key={round.recordId} roomId={roomId} roundId={round.recordId}
               shortlist={round.data.shortlist} isHost={isHost} partnerLabel={partnerLabel} />
@@ -91,12 +92,13 @@ export function RoomRound({ roomId, isHost, partnerLabel = 'Your partner' }: {
   )
 }
 
-function MoodSetup({ round, roundId, roomId, isHost }: {
-  round: Round; roundId: string; roomId: string; isHost: boolean
+function MoodSetup({ round, roundId, roomId, isHost, isDemo }: {
+  round: Round; roundId: string; roomId: string; isHost: boolean; isDemo: boolean
 }) {
   const storedMoods = isHost ? round.hostMoods : round.guestMoods
   const storedRuntime = isHost ? round.hostRuntime : round.guestRuntime
   const [draft, setDraft] = useState<{ moods: Mood[]; runtime: RuntimeLimit }>()
+  const [demoLoaded, setDemoLoaded] = useState(false)
   const [brief, setBrief] = useState<string>()
   const [saved, setSaved] = useState(false)
   const { busy, error, run } = useRoundRequest()
@@ -156,6 +158,16 @@ function MoodSetup({ round, roundId, roomId, isHost }: {
               <Textarea aria-label="Tonight’s brief" maxLength={500} value={brief ?? preview}
                 onChange={event => setBrief(event.target.value)} disabled={busy} />
               <p>Edit the brief before voting starts.</p>
+              {isDemo && (
+                <div>
+                  <p>Add sample ratings for the demo partner.</p>
+                  <Button variant="outline" disabled={busy || demoLoaded} onClick={() => run(async () => {
+                    await roomAction('seedDemoHistory', { roomId })
+                    setDemoLoaded(true)
+                  })}>Load demo ratings</Button>
+                  {demoLoaded && <p role="status">Demo ratings loaded.</p>}
+                </div>
+              )}
               <Button loading={busy} onClick={() => run(async () => {
                 if (draft && !saved) await save()
                 await roomAction('startRound', { roomId, brief })
@@ -251,6 +263,10 @@ function Voting({ round, roundId, isHost }: { round: Round; roundId: string; isH
   return (
     <>
       <div className="df-progress"><strong>{index + 1} of {round.shortlist.length} films</strong><span>Private vote</span></div>
+      {round.inputs?.personalized && <p>Past ratings helped order tonight’s shortlist.</p>}
+      {round.shortlist.length < 3 && (
+        <p>{round.shortlist.length === 1 ? '1 film available to vote on.' : '2 films available to vote on.'}</p>
+      )}
       {round.inputs?.runtimeLimitIgnored && (
         <p role="status">No films fit your runtime limit, so these are the closest options.</p>
       )}

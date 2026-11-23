@@ -27,7 +27,7 @@ export const roundsSchema: CollectionSchema = {
     { name: 'status', storage: 'text', interpretation: 'plain' },
     // JSON array of user ids allowed to read this round (copied from the room).
     { name: 'memberIds', storage: 'text', interpretation: { kind: 'json' } },
-    // JSON snapshot of what the shortlist was built from (exclusions, ratings used, fallback flag).
+    // JSON snapshot of what the shortlist was built from (exclusions and ranking summary).
     { name: 'inputs', storage: 'text', interpretation: { kind: 'json' } },
   ],
   uniqueOn: ['roomId', 'number'],

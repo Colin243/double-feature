@@ -14,8 +14,8 @@ export class RoundMutationQueue {
 export const roundMutationPath = '/internal/round-mutation'
 export const roundMutationSignatureHeader = 'x-round-mutation-signature'
 
-export function isRoundMutation(name: string): name is 'setMood' | 'startRound' | 'submitBallot' | 'finalizeRound' {
-  return name === 'setMood' || name === 'startRound' || name === 'submitBallot' || name === 'finalizeRound'
+export function isRoundMutation(name: string): name is 'setMood' | 'startRound' | 'submitBallot' | 'finalizeRound' | 'saveRating' | 'seedDemoHistory' {
+  return name === 'setMood' || name === 'startRound' || name === 'submitBallot' || name === 'finalizeRound' || name === 'saveRating' || name === 'seedDemoHistory'
 }
 
 // The Durable Object acts as whichever userId the request body names, so the

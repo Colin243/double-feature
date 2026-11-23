@@ -1,8 +1,11 @@
 import { getAuthToken } from 'deepspace'
 import type { Votes } from './ballot'
 import type { Mood, RuntimeLimit } from './moods'
+import type { Rating } from './rating'
 
 type RoomActions = {
+  seedDemoHistory: { params: { roomId: string }; data: { saved: true } }
+  saveRating: { params: { roomId: string; filmId: string; roundId?: string } & Rating; data: { saved: true } }
   openSetupRound: { params: { roomId: string }; data: { roundId: string } }
   setMood: { params: { roundId: string; moods: Mood[]; runtime: RuntimeLimit }; data: { saved: true } }
   startRound: { params: { roomId: string; brief?: string }; data: { roundId: string } }
@@ -13,6 +16,7 @@ type RoomActions = {
 }
 
 const messages: Record<string, string> = {
+  no_new_films: 'You’ve reached the end of this catalog. There are no new films for this room.',
   invalid_input: 'Check your input and try again.',
   wrong_status: 'This round has moved on.',
   ballot_invalid: 'Choose one vote for every film before submitting.',

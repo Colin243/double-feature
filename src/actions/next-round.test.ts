@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ActionTools } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { seedFilms } from '../lib/films'
+import { ratingId } from '../lib/rating'
 import { resultId } from '../schemas/results'
 import { actions } from './index'
 
@@ -12,11 +13,14 @@ type Data = Record<string, unknown>
 function fakeRoom(guestId = 'guest') {
   const rounds = new Map<string, Data>()
   const results = new Map<string, Data>()
+  const ratings = new Map<string, Data>()
+  const snapshots = new Map<string, Data>()
   let counter = 0
   const record = (recordId: string, data: Data) => ({
     recordId, data: structuredClone(data), createdBy: 'host', createdAt: '', updatedAt: '',
   })
-  const store = (collection: string) => (collection === 'rounds' ? rounds : results)
+  const stores = { rounds, results, ratings, roundRankingInputs: snapshots }
+  const store = (collection: string) => stores[collection as keyof typeof stores]
 
   const tools = {
     get: async (collection: string, id: string) => {
@@ -54,7 +58,7 @@ function fakeRoom(guestId = 'guest') {
         rounds.set(recordId, structuredClone(data))
         return { success: true, data: { recordId } }
       }
-      results.set(id ?? `result-${++counter}`, structuredClone(data))
+      store(collection).set(id ?? `result-${++counter}`, structuredClone(data))
       return { success: true, data: { recordId: id ?? '' } }
     },
     update: async (collection: string, id: string, patch: Data) => {
@@ -67,7 +71,7 @@ function fakeRoom(guestId = 'guest') {
 
   const run = (name: string, userId: string, params: Data) =>
     actions[name]({ userId, params, tools, env: {} as Env, callerJwt: 'test' })
-  return { rounds, results, run, host: (name: string, params: Data = { roomId }) => run(name, 'host', params) }
+  return { rounds, results, ratings, snapshots, run, host: (name: string, params: Data = { roomId }) => run(name, 'host', params) }
 }
 
 /** Mark a round revealed and store the result a finished round would have. */
@@ -147,7 +151,7 @@ describe('starting another round', () => {
       .toEqual([picked, seenByHost, seenByGuest].sort())
   })
 
-  it('falls back to the whole seed list when nothing is left', async () => {
+  it('keeps an exhausted catalog in setup', async () => {
     const room = fakeRoom()
     const first = await room.host('openSetupRound')
     await room.host('startRound')
@@ -156,8 +160,53 @@ describe('starting another round', () => {
       ballots: { hostVotes: Object.fromEntries(seedFilms.map(film => [film.id, 'seen'])), guestVotes: {} },
     })
     const second = await room.host('openSetupRound')
-    await room.host('startRound')
-    expect((room.rounds.get(roundId(second))!.shortlist as unknown[]).length).toBe(Math.min(6, seedFilms.length))
+    expect(await room.host('startRound')).toEqual({ success: false, error: 'no_new_films' })
+    expect(room.rounds.get(roundId(second))).toMatchObject({ status: 'setup', shortlist: [] })
+  })
+
+  it('excludes ratings from either member and locks the ranking snapshot when voting starts', async () => {
+    const room = fakeRoom()
+    const first = await room.host('openSetupRound')
+    const rated = seedFilms[0].id
+    const otherRated = seedFilms[1].id
+    const outsiderRated = seedFilms[2].id
+    room.ratings.set(ratingId('host', rated), { filmId: rated, userId: 'host', stars: 5, tags: [] })
+    room.ratings.set(ratingId('guest', otherRated), { filmId: otherRated, userId: 'guest', stars: 1, tags: [] })
+    room.ratings.set(ratingId('outsider', outsiderRated), { filmId: outsiderRated, userId: 'outsider', stars: 5 })
+    expect(await room.host('startRound')).toEqual(first)
+    const id = roundId(first)
+    const initial = structuredClone(room.snapshots.get(id))
+    expect(initial).toMatchObject({ snapshot: { excludedFilmIds: [rated, otherRated], ratings: [{ stars: 5 }, { stars: 1 }] } })
+    const round = room.rounds.get(id)!
+    expect(round.inputs).not.toHaveProperty('ratings')
+    const ids = (round.shortlist as { id: string }[]).map(film => film.id)
+    expect(ids).not.toContain(rated)
+    expect(ids).not.toContain(otherRated)
+    expect(ids).toContain(outsiderRated)
+
+    room.ratings.set(ratingId('host', rated), { filmId: rated, userId: 'host', stars: 1, tags: [] })
+    expect(await room.host('startRound')).toEqual(first)
+    expect(room.snapshots.get(id)).toEqual(initial)
+  })
+
+  it('seeds room-scoped demo ratings idempotently and only for a demo host', async () => {
+    const room = fakeRoom('bot')
+    expect(await room.run('seedDemoHistory', 'guest', { roomId })).toMatchObject({ error: 'not_host' })
+    expect(await fakeRoom().host('seedDemoHistory')).toMatchObject({ error: 'not_demo_room' })
+    expect(await room.host('seedDemoHistory')).toMatchObject({ success: true })
+    expect(await room.host('seedDemoHistory')).toMatchObject({ success: true })
+    expect(room.ratings.size).toBe(2)
+    for (const rating of room.ratings.values()) expect(rating).toMatchObject({ userId: 'bot', roomId })
+
+    const foreign = seedFilms[0].id
+    room.ratings.set('other-demo-rating', { userId: 'bot', roomId: 'elsewhere', filmId: foreign, stars: 5 })
+    const opened = await room.host('openSetupRound')
+    expect(await room.host('startRound')).toEqual(opened)
+    const ids = (room.rounds.get(roundId(opened))?.shortlist as { id: string }[]).map(film => film.id)
+    expect(ids).toContain(foreign)
+    for (const rating of room.ratings.values()) {
+      if (rating.roomId === roomId) expect(ids).not.toContain(rating.filmId)
+    }
   })
 
   it('does not skip anything in round 1', async () => {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from 'deepspace'
 import { Button } from '@/components/ui'
+import { FilmRating } from '@/components/FilmRating'
 import { Receipts } from '@/components/Receipts'
 import { RevealCard } from '@/components/RevealCard'
 import type { Outcome } from '@/components/RevealCard'
@@ -61,19 +62,18 @@ export function RoundReveal({ roomId, roundId, shortlist, isHost, partnerLabel }
           animate={!reducedMotion}
         />
         <div className="df-vote-side">
-          {result.outcome === 'none' && (
-            <section className="df-panel" aria-label="Next round">
-              {isHost ? (
-                <>
-                  <h3>Try again?</h3>
-                  <p>Nothing worked for both of you. You can start another round.</p>
-                  <Button loading={busy} onClick={startAnother}>Start another round</Button>
-                </>
-              ) : (
-                <p role="status">Waiting for the host to start another round.</p>
-              )}
-            </section>
-          )}
+          {film && <FilmRating key={film.id} roomId={roomId} roundId={roundId} filmId={film.id} />}
+          <section className="df-panel" aria-label="Next round">
+            {isHost ? (
+              <>
+                <h3>{film ? 'Another movie night?' : 'Try again?'}</h3>
+                {!film && <p>Nothing worked for both of you. You can start another round.</p>}
+                <Button loading={busy} onClick={startAnother}>Start another round</Button>
+              </>
+            ) : (
+              <p role="status">Waiting for the host to start another round.</p>
+            )}
+          </section>
           <Receipts
             shortlist={shortlist}
             hostVotes={result.ballots.hostVotes}

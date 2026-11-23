@@ -28,6 +28,7 @@ function setup(guestId = 'guest', status = 'ready') {
       ballots.set(id, structuredClone(data))
       return { success: true, data: { recordId: id } }
     }
+    if (collection === 'roundRankingInputs') return { success: true, data: { recordId: id } }
     if (saved) return { success: false, error: 'Duplicate room round' }
     saved = structuredClone(data)
     return { success: true, data: { recordId: roundId } }

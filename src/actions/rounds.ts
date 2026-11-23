@@ -3,7 +3,9 @@ import type { ActionHandler, ActionResult, ActionTools } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { resultId } from '../schemas/results'
 import { seedFilms } from '../lib/films'
-import { buildBrief, combineMoods, moodChips, rankSeedFilms } from '../lib/moods'
+import { buildBrief, combineMoods, moodChips } from '../lib/moods'
+import { rankByRatings } from '../lib/ranking'
+import type { FilmRating } from '../lib/ranking'
 import type { Mood, RuntimeLimit } from '../lib/moods'
 
 type ReadyRoom = {
@@ -182,23 +184,39 @@ export const startRound: ActionHandler<Env> = async ({ userId, params, tools }) 
 
   const preferences = [round.hostMoods, round.guestMoods, round.hostRuntime, round.guestRuntime] as const
   const preferred = combineMoods(...preferences)
-  // Later rounds skip films already picked or marked "already seen" in this
-  // room's earlier rounds. Until ratings and discovery exist the seed list is
-  // small, so if that leaves nothing we fall back to the whole list.
   const skipped = await filmsToSkip(tools, roomId, round.number)
   if (!skipped.success) return skipped
-  const remaining = seedFilms.filter(film => !skipped.data.has(film.id))
-  const pool = remaining.length ? remaining : seedFilms
-  // rankSeedFilms falls back to every film when none fit the runtime limit.
-  // Record that, so the vote screen can say the limit was not applied instead
-  // of leaving a brief that still reads "under 100 minutes".
-  const runtimeLimitIgnored = preferred.maxRuntime > 0 &&
-    !pool.some(film => film.runtimeMinutes < preferred.maxRuntime)
+
+  const { hostId, guestId } = room.data.record.data
+  const members = [hostId, guestId]
+  const history = await Promise.all(members.map(userId =>
+    tools.query<FilmRating & { userId: string; roomId: string }>('ratings', {
+      where: userId === 'bot' ? { userId, roomId } : { userId }, limit: 100,
+    }),
+  ))
+  if (history.some(result => !result.success)) return { success: false, error: 'rating_lookup_failed' }
+  const ratings = history.flatMap((result, index) => result.success
+    ? result.data.records.map(record => record.data).filter(rating =>
+        rating.userId === members[index] && typeof rating.filmId === 'string' &&
+        (rating.userId !== 'bot' || rating.roomId === roomId))
+    : [])
+  const excluded = new Set([...skipped.data, ...ratings.map(rating => rating.filmId)])
+  const pool = seedFilms.filter(film => !excluded.has(film.id))
+  if (!pool.length) return { success: false, error: 'no_new_films' }
+
+  const ranked = rankByRatings(pool, preferred.moods, preferred.maxRuntime, ratings, record.recordId, seedFilms)
+  const snapshot = await tools.create('roundRankingInputs', {
+    snapshot: { ...preferred, excludedFilmIds: [...excluded], ratings, catalog: seedFilms },
+  }, record.recordId)
+  if (!snapshot.success) return { success: false, error: 'round_inputs_save_failed' }
   const saved = await tools.update('rounds', record.recordId, {
     status: 'voting',
     brief: typeof brief === 'string' && brief.trim() ? brief.trim() : buildBrief(...preferences),
-    shortlist: rankSeedFilms(pool, preferred.moods, preferred.maxRuntime),
-    inputs: { ...preferred, runtimeLimitIgnored, skippedFilmIds: [...skipped.data] },
+    shortlist: ranked.shortlist,
+    inputs: {
+      ...preferred, runtimeLimitIgnored: ranked.runtimeLimitIgnored, personalized: ranked.personalized,
+      skippedFilmIds: [...skipped.data],
+    },
   })
   return saved.success ? result : { success: false, error: 'round_update_failed' }
 }
