@@ -17,6 +17,7 @@ import { ballotsSchema } from './schemas/ballots'
 import { ratingsSchema } from './schemas/ratings'
 import { resultsSchema } from './schemas/results'
 import { roundRankingInputsSchema } from './schemas/round-ranking-inputs'
+import { trailersSchema } from './schemas/trailers'
 
 export const schemas: CollectionSchema[] = [
   usersSchema,
@@ -28,4 +29,5 @@ export const schemas: CollectionSchema[] = [
   resultsSchema,
   ratingsSchema,
   roundRankingInputsSchema,
+  trailersSchema,
 ]

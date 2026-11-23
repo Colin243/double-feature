@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from 'deepspace'
 import { Button } from '@/components/ui'
 import { FilmRating } from '@/components/FilmRating'
+import { TrailerEmbed } from '@/components/TrailerEmbed'
 import { Receipts } from '@/components/Receipts'
 import { RevealCard } from '@/components/RevealCard'
 import type { Outcome } from '@/components/RevealCard'
@@ -62,6 +63,7 @@ export function RoundReveal({ roomId, roundId, shortlist, isHost, partnerLabel }
           animate={!reducedMotion}
         />
         <div className="df-vote-side">
+          {film && <TrailerEmbed key={film.id} roundId={roundId} filmId={film.id} />}
           {film && <FilmRating key={film.id} roomId={roomId} roundId={roundId} filmId={film.id} />}
           <section className="df-panel" aria-label="Next round">
             {isHost ? (
