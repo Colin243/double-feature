@@ -51,3 +51,8 @@ Base score = mood overlap. Add a small bonus for films whose mood tags overlap t
 
 ## Not in this PR
 Live discovery (PR 8).
+
+## As built
+- Actions `saveRating` and `seedDemoHistory` (`src/actions/ratings.ts`), the `ratings` collection (`read: 'own'`) and a server-only `roundRankingInputs` collection that snapshots what each shortlist was built from. `rankByRatings` (`src/lib/ranking.ts`) is deterministic. The reveal screen has a "Your rating" panel (`FilmRating`), and the host gets "Start another round" after a match too.
+- **Differs from the plan above:** only the film that was *picked* in a finished round can be rated. A rated film is left out of later shortlists for that person in every room, but if fewer than 3 fresh films remain, repeats come back (rated films first, then earlier picks and films marked seen) and are flagged on the round and on the vote screen. The first version failed with `no_new_films` instead; that was changed in review. Reaction tags are stored, not used in ranking.
+- **Tests:** unit tests for ranking, `saveRating`, the snapshot lock, the demo ratings and the fallback tiers; `tests/ratings.spec.ts` (6 end-to-end tests: ratings private to their owner over socket and HTTP tools with a mutation check, edits replace, input validation and "only the pick", no client writes, the next round always starts and flags repeats, the rating panel and demo ratings). The end-to-end tests only assert things that hold however many ratings an account already has, because ratings cannot be deleted.

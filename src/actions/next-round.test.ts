@@ -151,7 +151,7 @@ describe('starting another round', () => {
       .toEqual([picked, seenByHost, seenByGuest].sort())
   })
 
-  it('keeps an exhausted catalog in setup', async () => {
+  it('still starts a round when every film has been seen, and says which are repeats', async () => {
     const room = fakeRoom()
     const first = await room.host('openSetupRound')
     await room.host('startRound')
@@ -160,8 +160,58 @@ describe('starting another round', () => {
       ballots: { hostVotes: Object.fromEntries(seedFilms.map(film => [film.id, 'seen'])), guestVotes: {} },
     })
     const second = await room.host('openSetupRound')
-    expect(await room.host('startRound')).toEqual({ success: false, error: 'no_new_films' })
-    expect(room.rounds.get(roundId(second))).toMatchObject({ status: 'setup', shortlist: [] })
+    expect(await room.host('startRound')).toEqual(second)
+
+    const stored = room.rounds.get(roundId(second))!
+    expect(stored.status).toBe('voting')
+    expect((stored.shortlist as unknown[]).length).toBe(Math.min(6, seedFilms.length))
+    expect((stored.inputs as { repeatedFilmIds: string[] }).repeatedFilmIds.sort())
+      .toEqual(seedFilms.map(film => film.id).sort())
+  })
+
+  it('never fails to start after a player has rated every film, in any room', async () => {
+    // The failure this guards against: ratings follow a person across rooms, so a
+    // player who had rated all the films could not start a round anywhere.
+    const room = fakeRoom()
+    for (const film of seedFilms) {
+      room.ratings.set(ratingId('host', film.id), { filmId: film.id, userId: 'host', stars: 4, tags: [] })
+    }
+    const opened = await room.host('openSetupRound')
+    expect(await room.host('startRound')).toEqual(opened)
+    const stored = room.rounds.get(roundId(opened))!
+    expect((stored.shortlist as unknown[]).length).toBeGreaterThanOrEqual(3)
+    expect((stored.inputs as { repeatedFilmIds: string[] }).repeatedFilmIds.length).toBe(seedFilms.length)
+  })
+
+  it('brings back rated films before earlier picks and films marked seen', async () => {
+    const room = fakeRoom()
+    const first = await room.host('openSetupRound')
+    await room.host('startRound')
+    const [picked, seen, rated1, rated2, rated3, fresh] = seedFilms.map(film => film.id)
+    reveal(room, roundId(first), {
+      outcome: 'match', filmId: picked,
+      ballots: { hostVotes: { [seen]: 'seen' }, guestVotes: {} },
+    })
+    for (const id of [rated1, rated2, rated3]) {
+      room.ratings.set(ratingId('host', id), { filmId: id, userId: 'host', stars: 3, tags: [] })
+    }
+    const second = await room.host('openSetupRound')
+    await room.host('startRound')
+
+    // One fresh film is not enough, so the three rated films come back; the
+    // earlier pick and the film marked seen stay out.
+    const stored = room.rounds.get(roundId(second))!
+    const ids = (stored.shortlist as { id: string }[]).map(film => film.id).sort()
+    expect(ids).toEqual([fresh, rated1, rated2, rated3].sort())
+    expect((stored.inputs as { repeatedFilmIds: string[] }).repeatedFilmIds.sort()).toEqual([rated1, rated2, rated3].sort())
+  })
+
+  it('has no repeats while enough fresh films remain', async () => {
+    const room = fakeRoom()
+    const opened = await room.host('openSetupRound')
+    room.ratings.set(ratingId('host', seedFilms[0].id), { filmId: seedFilms[0].id, userId: 'host', stars: 5, tags: [] })
+    await room.host('startRound')
+    expect((room.rounds.get(roundId(opened))!.inputs as { repeatedFilmIds: string[] }).repeatedFilmIds).toEqual([])
   })
 
   it('excludes ratings from either member and locks the ranking snapshot when voting starts', async () => {

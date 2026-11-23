@@ -16,7 +16,6 @@ type RoomActions = {
 }
 
 const messages: Record<string, string> = {
-  no_new_films: 'You’ve reached the end of this catalog. There are no new films for this room.',
   invalid_input: 'Check your input and try again.',
   wrong_status: 'This round has moved on.',
   ballot_invalid: 'Choose one vote for every film before submitting.',

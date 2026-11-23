@@ -3,6 +3,7 @@ import type { ActionHandler, ActionResult, ActionTools } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { resultId } from '../schemas/results'
 import { seedFilms } from '../lib/films'
+import type { Film } from '../lib/films'
 import { buildBrief, combineMoods, moodChips } from '../lib/moods'
 import { rankByRatings } from '../lib/ranking'
 import type { FilmRating } from '../lib/ranking'
@@ -16,6 +17,9 @@ type ReadyRoom = {
 }
 
 const demoMoods: readonly Mood[] = ['laugh', 'guessing']
+
+/** A round needs at least this many films to be worth voting on. */
+const MIN_SHORTLIST = 3
 
 export const openSetupRound: ActionHandler<Env> = async ({ userId, params, tools }) => {
   if (!params || Object.keys(params).length !== 1 ||
@@ -200,13 +204,30 @@ export const startRound: ActionHandler<Env> = async ({ userId, params, tools }) 
         rating.userId === members[index] && typeof rating.filmId === 'string' &&
         (rating.userId !== 'bot' || rating.roomId === roomId))
     : [])
-  const excluded = new Set([...skipped.data, ...ratings.map(rating => rating.filmId)])
-  const pool = seedFilms.filter(film => !excluded.has(film.id))
-  if (!pool.length) return { success: false, error: 'no_new_films' }
+  const ratedIds = new Set(ratings.map(rating => rating.filmId))
+  const excluded = new Set([...skipped.data, ...ratedIds])
+
+  // Fresh films come first. A small catalog can run out (every film picked,
+  // seen or rated), and a round must still be able to start, so when fewer than
+  // MIN_SHORTLIST fresh films are left we bring back repeats in order of how
+  // little they bother the players: films someone rated, then earlier picks and
+  // films marked "already seen". The repeats are recorded and shown.
+  const tiers = [
+    seedFilms.filter(film => !excluded.has(film.id)),
+    seedFilms.filter(film => ratedIds.has(film.id) && !skipped.data.has(film.id)),
+    seedFilms.filter(film => skipped.data.has(film.id)),
+  ]
+  const pool: Film[] = []
+  const repeatedFilmIds: string[] = []
+  tiers.forEach((tier, index) => {
+    if (index > 0 && pool.length >= MIN_SHORTLIST) return
+    pool.push(...tier)
+    if (index > 0) repeatedFilmIds.push(...tier.map(film => film.id))
+  })
 
   const ranked = rankByRatings(pool, preferred.moods, preferred.maxRuntime, ratings, record.recordId, seedFilms)
   const snapshot = await tools.create('roundRankingInputs', {
-    snapshot: { ...preferred, excludedFilmIds: [...excluded], ratings, catalog: seedFilms },
+    snapshot: { ...preferred, excludedFilmIds: [...excluded], repeatedFilmIds, ratings, catalog: seedFilms },
   }, record.recordId)
   if (!snapshot.success) return { success: false, error: 'round_inputs_save_failed' }
   const saved = await tools.update('rounds', record.recordId, {
@@ -215,7 +236,7 @@ export const startRound: ActionHandler<Env> = async ({ userId, params, tools }) 
     shortlist: ranked.shortlist,
     inputs: {
       ...preferred, runtimeLimitIgnored: ranked.runtimeLimitIgnored, personalized: ranked.personalized,
-      skippedFilmIds: [...skipped.data],
+      skippedFilmIds: [...skipped.data], repeatedFilmIds,
     },
   })
   return saved.success ? result : { success: false, error: 'round_update_failed' }

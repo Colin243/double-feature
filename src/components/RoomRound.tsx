@@ -17,7 +17,7 @@ type Round = {
   hostRuntime: RuntimeLimit
   guestRuntime: RuntimeLimit
   shortlist: Film[]
-  inputs?: { runtimeLimitIgnored?: boolean; personalized?: boolean }
+  inputs?: { runtimeLimitIgnored?: boolean; personalized?: boolean; repeatedFilmIds?: string[] }
   submittedHost: boolean
   submittedGuest: boolean
 }
@@ -264,6 +264,9 @@ function Voting({ round, roundId, isHost }: { round: Round; roundId: string; isH
     <>
       <div className="df-progress"><strong>{index + 1} of {round.shortlist.length} films</strong><span>Private vote</span></div>
       {round.inputs?.personalized && <p>Past ratings helped order tonight’s shortlist.</p>}
+      {!!round.inputs?.repeatedFilmIds?.length && (
+        <p role="status">You’ve seen most of the catalog, so some of these films are repeats.</p>
+      )}
       {round.shortlist.length < 3 && (
         <p>{round.shortlist.length === 1 ? '1 film available to vote on.' : '2 films available to vote on.'}</p>
       )}
