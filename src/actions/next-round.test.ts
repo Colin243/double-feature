@@ -15,11 +15,12 @@ function fakeRoom(guestId = 'guest') {
   const results = new Map<string, Data>()
   const ratings = new Map<string, Data>()
   const snapshots = new Map<string, Data>()
+  const discoveries = new Map<string, Data>()
   let counter = 0
   const record = (recordId: string, data: Data) => ({
     recordId, data: structuredClone(data), createdBy: 'host', createdAt: '', updatedAt: '',
   })
-  const stores = { rounds, results, ratings, roundRankingInputs: snapshots }
+  const stores = { rounds, results, ratings, roundRankingInputs: snapshots, discoveries }
   const store = (collection: string) => stores[collection as keyof typeof stores]
 
   const tools = {
@@ -58,8 +59,12 @@ function fakeRoom(guestId = 'guest') {
         rounds.set(recordId, structuredClone(data))
         return { success: true, data: { recordId } }
       }
-      store(collection).set(id ?? `result-${++counter}`, structuredClone(data))
-      return { success: true, data: { recordId: id ?? '' } }
+      if (collection === 'discoveries' && [...discoveries.values()].some(entry => entry.roundId === data.roundId)) {
+        return { success: false, error: 'Duplicate: a record with roundId already exists in discoveries' }
+      }
+      const recordId = id ?? `${collection}-${++counter}`
+      store(collection).set(recordId, structuredClone(data))
+      return { success: true, data: { recordId } }
     },
     update: async (collection: string, id: string, patch: Data) => {
       const current = store(collection).get(id)
@@ -71,7 +76,7 @@ function fakeRoom(guestId = 'guest') {
 
   const run = (name: string, userId: string, params: Data) =>
     actions[name]({ userId, params, tools, env: {} as Env, callerJwt: 'test' })
-  return { rounds, results, ratings, snapshots, run, host: (name: string, params: Data = { roomId }) => run(name, 'host', params) }
+  return { rounds, results, ratings, snapshots, discoveries, run, host: (name: string, params: Data = { roomId }) => run(name, 'host', params) }
 }
 
 /** Mark a round revealed and store the result a finished round would have. */
@@ -204,6 +209,22 @@ describe('starting another round', () => {
     const ids = (stored.shortlist as { id: string }[]).map(film => film.id).sort()
     expect(ids).toEqual([fresh, rated1, rated2, rated3].sort())
     expect((stored.inputs as { repeatedFilmIds: string[] }).repeatedFilmIds.sort()).toEqual([rated1, rated2, rated3].sort())
+  })
+
+  it('brings back rated films that fit a runtime limit instead of leaving a one-film vote', async () => {
+    // "Under 100 minutes" fits only the two shortest seed films. If both have been rated, the old rule
+    // saw plenty of fresh (long) films, added no repeats, and then the runtime limit left one film
+    // or none. Repeats now count toward the minimum only when they fit the limit.
+    const room = fakeRoom()
+    const short = seedFilms.filter(film => (film.runtimeMinutes ?? 0) < 100).map(film => film.id)
+    for (const id of short) room.ratings.set(ratingId('host', id), { filmId: id, userId: 'host', stars: 3, tags: [] })
+    const opened = await room.host('openSetupRound')
+    room.rounds.set(roundId(opened), { ...room.rounds.get(roundId(opened)), hostRuntime: 100 })
+    await room.host('startRound')
+    const stored = room.rounds.get(roundId(opened))!
+    const ids = (stored.shortlist as { id: string }[]).map(film => film.id)
+    expect(ids.sort()).toEqual([...short].sort())
+    expect((stored.inputs as { repeatedFilmIds: string[] }).repeatedFilmIds.sort()).toEqual([...short].sort())
   })
 
   it('has no repeats while enough fresh films remain', async () => {

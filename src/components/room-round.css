@@ -186,3 +186,10 @@
 .df-rating-options legend {
   margin-bottom: 0.4rem;
 }
+
+/* Discovery */
+.df-check { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 700; cursor: pointer; }
+.df-check input { width: 20px; height: 20px; accent-color: var(--df-amber); }
+.df-check input:focus-visible { outline: 2px solid var(--df-amber); outline-offset: 3px; }
+.df-reason, .df-reveal-note-plain { color: var(--df-ink); font-size: .9375rem; }
+.df-round a { color: var(--df-amber); text-underline-offset: 3px; }
