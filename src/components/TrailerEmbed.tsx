@@ -38,6 +38,7 @@ export function TrailerEmbed({ roundId, filmId }: { roundId: string; filmId: str
             referrerPolicy="strict-origin-when-cross-origin"
             allowFullScreen
           />
+          <p>Showing: {trailer.title}</p>
           <a href={`https://www.youtube.com/watch?v=${trailer.videoId}`} target="_blank" rel="noreferrer">
             Watch on YouTube
           </a>

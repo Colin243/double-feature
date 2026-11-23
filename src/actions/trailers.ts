@@ -2,8 +2,9 @@ import { RECORD_NOT_FOUND } from 'deepspace/worker'
 import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import type { Film } from '../lib/films'
-import { isYouTubeVideoId, pickTrailer, trailerQuery } from '../lib/trailer'
+import { isYouTubeVideoId, pickTrailer, trailerLimits, trailerQuery, utcDay } from '../lib/trailer'
 import type { Trailer, YouTubeVideo } from '../lib/trailer'
+import { pinnedTrailers } from '../lib/trailer-pins'
 import { resultId } from '../schemas/results'
 
 export const getTrailer: ActionHandler<Env> = async ({ userId, params, tools }) => {
@@ -23,12 +24,27 @@ export const getTrailer: ActionHandler<Env> = async ({ userId, params, tools }) 
   const film = shortlist?.find(candidate => candidate.id === filmId)
   if (!film || result.data.record.data.filmId !== filmId) return { success: false, error: 'invalid_input' }
 
+  // The six films we ship have hand-picked trailers: free, and never the wrong film.
+  const pinned = Object.hasOwn(pinnedTrailers, filmId) ? pinnedTrailers[filmId] : undefined
+  if (pinned) return { success: true, data: { trailer: pinned } }
+
   const cached = await tools.get<Trailer>('trailers', filmId)
   if (cached.success) {
     const { videoId, title } = cached.data.record.data
     return { success: true, data: { trailer: isYouTubeVideoId(videoId) ? { videoId, title } : null } }
   }
   if (cached.error !== RECORD_NOT_FOUND) return { success: false, error: 'trailer_unavailable' }
+
+  // A fresh search costs real money, so it is limited per person and per day.
+  const now = Date.now()
+  const day = utcDay(now)
+  const today = await tools.query<{ userId?: string }>('trailers', { where: { day }, limit: 500 })
+  if (!today.success) return { success: false, error: 'trailer_unavailable' }
+  const searchesToday = today.data.records.map(record => record.data)
+  const mine = searchesToday.filter(entry => entry.userId === userId).length
+  if (mine >= trailerLimits.perUser || searchesToday.length >= trailerLimits.global) {
+    return { success: false, error: 'rate_limited' }
+  }
 
   // Provider failures remain retryable. An empty successful search is cached.
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -41,7 +57,7 @@ export const getTrailer: ActionHandler<Env> = async ({ userId, params, tools }) 
       return { success: false, error: 'trailer_unavailable' }
     }
     const trailer = pickTrailer(found.data.videos, film)
-    const saved = await tools.create('trailers', trailer ?? { videoId: '', title: '' }, filmId)
+    const saved = await tools.create('trailers', { ...(trailer ?? { videoId: '', title: '' }), userId, day, createdMs: now }, filmId)
     return saved.success ? { success: true, data: { trailer } } : { success: false, error: 'trailer_unavailable' }
   } catch {
     return { success: false, error: 'trailer_unavailable' }

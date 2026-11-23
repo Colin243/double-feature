@@ -45,3 +45,8 @@ Record the real response shape (embed link field, title) in `NOTES.md`. `youtube
 
 ## Not in this PR
 Poster images.
+
+## As built
+- **Differs from the plan above:** the action is `getTrailer({ roundId, filmId })` returning `{ trailer: { videoId, title } | null }` (not an `embedUrl`), the embed is `youtube-nocookie.com`, and lookups for one film are serialized by a per-film queue (`src/server/trailer-queue.ts`) so a slow search never delays other films or rooms.
+- **Added in review:** hand-picked trailers for the six films we ship (`src/lib/trailer-pins.ts`), a visible "Showing: <video title>" caption, daily limits on fresh searches, a fix for upload titles that start with the year, and end-to-end tests (`tests/trailers.spec.ts`). See `NOTES.md` for why: the first version returned the 2025 remake's trailer for the 1993 *The Wedding Banquet*.
+- **Acceptance:** "plays on the deployed reveal for at least two seed films" and "reveal works with YouTube forced to fail" are not done here (nothing is deployed yet); the pinned path was exercised end to end locally.

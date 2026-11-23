@@ -34,16 +34,23 @@ export function pickTrailer(videos: readonly YouTubeVideo[], film: TrailerFilm):
     const label = video?.snippet?.title
     if (!isYouTubeVideoId(videoId) || typeof label !== 'string') return []
     const normalized = words(label)
-    if (!normalized.startsWith(`${title} `) ||
-        /\b(?:fan made|fanmade|concept trailer|reaction|parody)\b/.test(normalized)) return []
-    const remainder = normalized.slice(title.length + 1)
+    // Some uploads put the year first: "1993 The Wedding Banquet Official Trailer".
+    const leadingYear = /^((?:19|20)\d{2}) /.exec(normalized)
+    const startsWithYear = Boolean(leadingYear && normalized.slice(5).startsWith(`${title} `))
+    const body = startsWithYear ? normalized.slice(5) : normalized
+    if (!body.startsWith(`${title} `) ||
+        /\b(?:fan made|fanmade|concept trailer|reaction|parody)\b/.test(body)) return []
+    const remainder = body.slice(title.length + 1)
     const trailerIndex = remainder.search(/\btrailer\b/)
     if (trailerIndex < 0) return []
     const qualifiers = remainder.slice(0, trailerIndex).match(/\S+/g) ?? []
     // Before the word "trailer", accept release years and presentation
     // qualifiers, but reject sequel numbers and subtitles from other films.
     if (qualifiers.some(word => !trailerQualifiers.has(word) && !releaseYear.test(word))) return []
-    const years = qualifiers.filter(word => releaseYear.test(word)).map(Number)
+    const years = [
+      ...(startsWithYear ? [Number(leadingYear?.[1])] : []),
+      ...qualifiers.filter(word => releaseYear.test(word)).map(Number),
+    ]
     if (film.year && years.length && !years.includes(film.year)) return []
     const score = Number(/\bofficial trailer\b/.test(normalized)) * 2 +
       Number(Boolean(film.year && years.includes(film.year)))
@@ -52,3 +59,12 @@ export function pickTrailer(videos: readonly YouTubeVideo[], film: TrailerFilm):
   matches.sort((a, b) => b.score - a.score)
   return matches[0]?.trailer ?? null
 }
+
+/**
+ * A search costs about 1.3 credits and is not rate-limited by the platform.
+ * Pinned films and cached answers are free, so these limits count only fresh
+ * searches, per person and across the app, per UTC day.
+ */
+export const trailerLimits = { perUser: 15, global: 60 } as const
+
+export const utcDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10)
