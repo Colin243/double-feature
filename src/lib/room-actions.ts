@@ -2,6 +2,7 @@ import { getAuthToken } from 'deepspace'
 import type { Votes } from './ballot'
 import type { Mood, RuntimeLimit } from './moods'
 import type { Rating } from './rating'
+import type { Trailer } from './trailer'
 
 export type DiscoverResult =
   | { status: 'ready'; count: number; cached: boolean }
@@ -10,6 +11,7 @@ export type DiscoverResult =
 
 type RoomActions = {
   discoverFilms: { params: { roundId: string; brief?: string }; data: DiscoverResult }
+  getTrailer: { params: { roundId: string; filmId: string }; data: { trailer: Trailer | null } }
   seedDemoHistory: { params: { roomId: string }; data: { saved: true } }
   saveRating: { params: { roomId: string; filmId: string; roundId?: string } & Rating; data: { saved: true } }
   openSetupRound: { params: { roomId: string }; data: { roundId: string } }

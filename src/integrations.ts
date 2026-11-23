@@ -34,6 +34,8 @@ export const integrations: Record<
   exa: { billing: 'developer' },
   anthropic: { billing: 'developer' },
   wikipedia: { billing: 'developer' },
+  // Trailers (src/actions/trailers.ts): one YouTube search per unpinned film, cached and limited per day.
+  youtube: { billing: 'developer' },
 }
 
 /**

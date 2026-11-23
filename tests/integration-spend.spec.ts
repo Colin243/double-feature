@@ -15,6 +15,7 @@ const paidCalls: [string, Record<string, unknown>][] = [
   ['exa/search', { query: 'romance films', numResults: 1 }],
   ['anthropic/chat-completion', { model: 'claude-haiku-5-5', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }],
   ['amazon/search-products', { query: 'popcorn' }],
+  ['youtube/search-videos', { q: 'Chungking Express official trailer', maxResults: 1 }],
 ]
 
 for (const [endpoint, body] of paidCalls) {

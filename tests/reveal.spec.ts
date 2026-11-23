@@ -190,7 +190,10 @@ test('no votes reach the other player’s browser before the reveal', async ({ u
   // Nothing the guest's browser has received so far contains a vote. The
   // platform does send every browser the schema list, which names the `votes`
   // column of `ballots` without any data, so that one frame type is skipped.
-  const dataFrames = frames.filter(frame => !frame.includes('"type":"records.list_schemas"'))
+  // Only frames about THIS round count. The platform also pushes a member's other finished rooms
+  // to every browser that member has open, so under parallel tests that share an account a frame
+  // about someone else's round (one this account is entitled to see) can arrive here.
+  const dataFrames = frames.filter(frame => !frame.includes('"type":"records.list_schemas"') && frame.includes(roundId))
   expect(dataFrames.length).toBeGreaterThan(0)
   for (const frame of dataFrames) {
     const leaked = ['hostVotes', 'guestVotes', '"votes"'].find(word => frame.includes(word))
@@ -214,4 +217,28 @@ test('a solo demo room reveals as soon as the host votes, and names the demo par
   await expect(card(host)).toBeVisible()
   await expect(host.page.getByRole('heading', { name: 'The receipts' })).toBeVisible()
   await expect(host.page.locator('.df-receipts li').first().locator('dt').nth(1)).toHaveText('Demo partner')
+})
+
+test('a browser belonging to someone outside the room receives nothing about it, even just sitting on the home page', async ({ users }) => {
+  const [hostUser, guestUser, outsiderUser] = await users(3)
+  const [host, guest, outsider] = await Promise.all([player(hostUser.page), player(guestUser.page), player(outsiderUser.page)])
+  const heard: string[] = []
+  outsider.page.on('websocket', socket => socket.on('framereceived', frame => {
+    heard.push(typeof frame.payload === 'string' ? frame.payload : frame.payload.toString())
+  }))
+  // Reload so the outsider's socket opens after the listener is attached.
+  await outsider.page.reload()
+  await outsider.page.waitForTimeout(1000)
+
+  const { roomId, roundId, shortlist } = await votingRound(host, guest)
+  await submit(host, roundId, shortlist, 'want')
+  await submit(guest, roundId, shortlist, 'want')
+  await open(host, roomId)
+  await expect(card(host)).toBeVisible()
+  await outsider.page.waitForTimeout(2500)
+
+  // Nothing about the room, its round, its result or its votes reached the outsider's browser.
+  expect(heard.filter(frame => frame.includes(roundId))).toEqual([])
+  expect(heard.filter(frame => /hostVotes|guestVotes/.test(frame))).toEqual([])
+  expect(heard.length).toBeGreaterThan(0) // the socket was open and receiving, so silence means something
 })

@@ -24,6 +24,7 @@ import { registerAgent } from './src/ai/agent.js'
 import { buildTools } from './src/ai/tools.js'
 import { tasks as cronTasks, runTask as runCronTask } from './src/cron.js'
 import { runJob } from './src/jobs.js'
+import { TrailerLookupQueue } from './src/server/trailer-queue.js'
 import { schemas } from './src/schemas.js'
 import { actions } from './src/actions/index.js'
 import {
@@ -54,6 +55,7 @@ export const __DO_MANIFEST__ = [
 
 export class AppRecordRoom extends RecordRoom<Env> {
   private readonly roundMutations = new RoundMutationQueue()
+  private readonly trailerLookups = new TrailerLookupQueue()
 
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
@@ -78,11 +80,17 @@ export class AppRecordRoom extends RecordRoom<Env> {
     }
     if (!isRoundMutation(name)) return new Response('Not found', { status: 404 })
 
-    return this.roundMutations.run(async () => {
+    const run = async () => {
       const tools = createActionTools(this.env, userId, '', request => super.fetch(request))
       const result = await actions[name]({ userId, params, tools, env: this.env, callerJwt: '' })
       return Response.json(result)
-    })
+    }
+    if (name === 'getTrailer') {
+      const filmId = params?.filmId
+      if (typeof filmId !== 'string' || !filmId.trim()) return run()
+      return this.trailerLookups.run(filmId, run)
+    }
+    return this.roundMutations.run(run)
   }
 
   constructor(state: DurableObjectState, env: Env) {
