@@ -3,7 +3,9 @@ import type { CollectionSchema } from 'deepspace/schema'
 import { schemas } from '../schemas'
 import { ballotsSchema } from './ballots'
 import { roomSeatClaimsSchema } from './room-seat-claims'
+import { ratingsSchema } from './ratings'
 import { roomsSchema } from './rooms'
+import { roundRankingInputsSchema } from './round-ranking-inputs'
 import { roundsSchema } from './rounds'
 
 const roles = ['*', 'viewer', 'member', 'admin'] as const
@@ -11,7 +13,7 @@ const denied = { read: false, create: false, update: false, delete: false }
 
 describe('game collections are server-written and privately read', () => {
   it('lets no role, admin included, read or write ballots or seat claims', () => {
-    for (const schema of [ballotsSchema, roomSeatClaimsSchema]) {
+    for (const schema of [ballotsSchema, roomSeatClaimsSchema, roundRankingInputsSchema]) {
       for (const role of roles) expect(schema.permissions[role], `${schema.name} ${role}`).toEqual(denied)
     }
   })
@@ -36,8 +38,16 @@ describe('game collections are server-written and privately read', () => {
     }
   })
 
+  it('only lets the owner read a rating and keeps writes server-side', () => {
+    expect(ratingsSchema.ownerField).toBe('userId')
+    for (const role of roles) {
+      const read = role === 'member' || role === 'admin' ? 'own' : false
+      expect(ratingsSchema.permissions[role]).toEqual({ ...denied, read })
+    }
+  })
+
   it('registers every game collection', () => {
     const registered = new Set(schemas.map((schema: CollectionSchema) => schema.name))
-    for (const name of ['rooms', 'rounds', 'ballots', 'roomSeatClaims']) expect(registered.has(name)).toBe(true)
+    for (const name of ['rooms', 'rounds', 'ballots', 'roomSeatClaims', 'ratings', 'roundRankingInputs']) expect(registered.has(name)).toBe(true)
   })
 })

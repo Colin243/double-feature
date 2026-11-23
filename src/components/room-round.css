@@ -173,3 +173,16 @@
 .df-receipts dl div { display: grid; gap: 2px; min-width: 0; }
 .df-receipts dt { color: var(--df-muted); font-size: .8125rem; }
 .df-receipts dd { margin: 0; font-weight: 700; color: var(--df-amber); }
+
+.df-rating-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  border: 0;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.df-rating-options legend {
+  margin-bottom: 0.4rem;
+}

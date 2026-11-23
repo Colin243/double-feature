@@ -27,6 +27,7 @@ describe('runtime limit that no film satisfies', () => {
         success: true,
         data: { records: [{ recordId: 'r1', data: round }], count: 1 },
       }),
+      create: async () => ({ success: true, data: { recordId: 'r1' } }),
       update,
     } as unknown as ActionTools
     return { update, tools }

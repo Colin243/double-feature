@@ -110,3 +110,22 @@ export async function clientWrite(
     setTimeout(() => done({ accepted: false, error: 'no ack (treated as rejected)' }), 4000)
   }), { scope, token, collection, recordId, data })
 }
+
+/** Call one of the app's HTTP agent tools as the signed-in user (they run with that user's permissions). */
+export async function agentTool(
+  page: Page, token: string, name: string, input: Record<string, unknown> = {},
+): Promise<{ status: number; body: { ok?: boolean; code?: string; error?: string; result?: { data?: Record<string, unknown> } } }> {
+  const response = await page.request.post(`/_deepspace/agent/browser/tools/${name}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { input },
+  })
+  return { status: response.status(), body: await response.json() }
+}
+
+/** The signed-in user's id, as the platform reports it. */
+export async function userIdOf(page: Page, token: string): Promise<string> {
+  const { status, body } = await agentTool(page, token, 'user_current')
+  const id = (body.result?.data?.user as { id?: string } | undefined)?.id
+  if (status !== 200 || !id) throw new Error('Could not read the current user id')
+  return id
+}
