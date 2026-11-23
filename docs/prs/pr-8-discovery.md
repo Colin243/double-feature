@@ -56,3 +56,14 @@ Check billing mode in `src/integrations.ts`. Paid calls bill the developer if se
 
 ## Not in this PR
 Trailers (PR 9), email (PR 10).
+
+## As built
+This differs from the plan above in ways worth knowing. Details are in `CONTRACTS.md` ("Discovery as built").
+- **Opt-in, off by default** (a checkbox for the host), not part of every round. Choosing to stay inside DeepSpace (Exa, the model, Wikipedia) means no TMDB and no new secrets; runtime stays unverified.
+- **Two model/verification changes forced by real runs:** the model *extracts and proposes from the snippets* and every title must appear in the web pages (then be confirmed on Wikipedia), rather than ranking a fixed candidate list; and the model is `claude-haiku-4-5` because `claude-haiku-5-5` returns nothing.
+- **Any verified film is kept** (the plan said fall back below three) and is guaranteed a place in the shortlist; our own list fills the rest.
+- **Runs outside the round-mutation queue**, with a `discoveries` row per round claimed before any spend.
+- **Limits:** 5 runs per person and 25 per day (retries counted), a 24-hour shared cache, and a 20/25/8-second timeout on the search, model and each Wikipedia lookup.
+- **Also in this PR:** closing the browser route to paid integrations; `Film.runtimeMinutes` may be `null`; repeats count toward the three-film minimum only when they fit the runtime limit; `liveQuery` waits for its first snapshot.
+- **Tests:** unit tests for ids, matching, parsing, the prompt, caps, the pipeline (with real captured Wikipedia, Exa and model output) and the action; `tests/discovery.spec.ts` (3 free end-to-end tests, and one real paid test behind `RUN_PAID_DISCOVERY=1`); `tests/integration-spend.spec.ts`.
+- **Not done here:** a live run on the deployed site; TMDB; verified runtimes.
