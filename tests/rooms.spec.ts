@@ -64,6 +64,39 @@ test('host creates a room, guest joins by code, and outsider cannot read it', as
   await expect(outsider.page.getByRole('alert')).toHaveText(full)
 })
 
+test('the host can copy the waiting-room link or select it manually', async ({ users }) => {
+  const [host] = await users(1)
+  await host.page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (text: string) => { sessionStorage.setItem('test-copied-link', text) } },
+    })
+  })
+  const { code, url } = await createRoom(host.page)
+  const expectedLink = new URL(`/join/${code}`, url).href
+  const invite = host.page.getByRole('textbox', { name: 'Invite link' })
+  const copy = host.page.getByRole('button', { name: 'Copy invite link' })
+
+  await expect(invite).toHaveValue(expectedLink)
+  await copy.click()
+  await expect(host.page.getByText('Invite link copied.')).toBeVisible()
+  expect(await host.page.evaluate(() => sessionStorage.getItem('test-copied-link'))).toBe(expectedLink)
+
+  await host.page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async () => { throw new Error('Clipboard unavailable') } },
+    })
+  })
+  await copy.click()
+  await expect(host.page.getByText('Copy the selected link manually.')).toBeVisible()
+  await expect(invite).toBeFocused()
+  expect(await invite.evaluate(input => {
+    const field = input as HTMLInputElement
+    return field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0)
+  })).toBe(expectedLink)
+})
+
 test('two guests competing for one seat get one success and one room_full', async ({ users }) => {
   const [host, first, second] = await users(3)
   const { code, url } = await createRoom(host.page)
