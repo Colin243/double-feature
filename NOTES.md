@@ -210,6 +210,10 @@ _(fill in)_
 
 ---
 
+## Trailers on the reveal (PR #10)
+
+Verified the DeepSpace YouTube contract with one search for Chungking Express. The response contains `videos[].snippet.title`, `videos[].id.videoId`, and watch and embed URLs under `videos[].links`. The catalog lists $0.013 per request. The Worker caches successful searches by film, including a confirmed no-match. Both the search and the embed wait for a player to click Watch trailer.
+
 ## Verification checklist (tick only what I checked myself)
 
 - [x] Sign-in works on the live URL (real GitHub sign-in completed by the user in the browser pane; test accounts also sign in fine. Google not tried. Automatic invite resume after the OAuth return is unproven, see the rooms entry.)
