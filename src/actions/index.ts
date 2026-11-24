@@ -6,4 +6,6 @@ import { finalizeRoundAction, submitBallot } from './ballots'
 import { saveRating, seedDemoHistory } from './ratings'
 import { getTrailer } from './trailers'
 
-export const actions: Record<string, ActionHandler<Env>> = { createRoom, joinRoom, addDemoPartner, openSetupRound, setMood, startRound, submitBallot, finalizeRound: finalizeRoundAction, saveRating, seedDemoHistory, getTrailer }
+import { chooseWildcard, getWildcard, nominateWildcard } from './wildcards'
+
+export const actions: Record<string, ActionHandler<Env>> = { createRoom, joinRoom, addDemoPartner, openSetupRound, setMood, startRound, submitBallot, finalizeRound: finalizeRoundAction, saveRating, seedDemoHistory, getTrailer, chooseWildcard, getWildcard, nominateWildcard }

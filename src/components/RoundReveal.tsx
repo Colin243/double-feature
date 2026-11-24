@@ -3,6 +3,8 @@ import { useQuery } from 'deepspace'
 import { Button } from '@/components/ui'
 import { FilmRating } from '@/components/FilmRating'
 import { TrailerEmbed } from '@/components/TrailerEmbed'
+import { WildcardGame } from '@/components/WildcardGame'
+import { eligibleWildcardFilms } from '@/lib/wildcard'
 import { Receipts } from '@/components/Receipts'
 import { RevealCard } from '@/components/RevealCard'
 import type { Outcome } from '@/components/RevealCard'
@@ -30,6 +32,7 @@ export function RoundReveal({ roomId, roundId, shortlist, isHost, partnerLabel }
 }) {
   const { records, status } = useQuery<Result>('results', { where: { roundId }, limit: 1 })
   const reducedMotion = usePrefersReducedMotion()
+  const [showWildcard, setShowWildcard] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const result = records[0]?.data
@@ -65,6 +68,10 @@ export function RoundReveal({ roomId, roundId, shortlist, isHost, partnerLabel }
         <div className="df-vote-side">
           {film && <TrailerEmbed key={film.id} roundId={roundId} filmId={film.id} />}
           {film && <FilmRating key={film.id} roomId={roomId} roundId={roundId} filmId={film.id} />}
+          {result.outcome === 'none' && (showWildcard
+            ? <WildcardGame key={roundId} roundId={roundId} isHost={isHost} partnerLabel={partnerLabel}
+                eligible={eligibleWildcardFilms(shortlist, result.ballots.hostVotes, result.ballots.guestVotes)} />
+            : <Button variant="outline" onClick={() => setShowWildcard(true)}>Play Keep or Risk</Button>)}
           <section className="df-panel" aria-label="Next round">
             {isHost ? (
               <>
