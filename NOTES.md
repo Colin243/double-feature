@@ -218,13 +218,17 @@ _(fill in)_
 _(fill in)_
 
 ### Wed Nov 25: Discovery and integrations
-_(fill in)_
+
+- Added opt-in live discovery (checkbox "Find new films with AI search"): Exa web search, then `claude-haiku-4-5` proposes titles, each title must appear in the search snippets, then Wikipedia confirms the film (description and year). Verified films join the shortlist with a reason and a Wikipedia link. Limits: 5 per person per day, 25 per day, a 24-hour shared cache. A real run cost about 1.5 to 2.1 credits on the 500-credit free plan. If anything fails, the round uses the curated catalog.
+- Found that the scaffold's browser route for integrations let any signed-in user spend the owner's credits. Closed it with an empty browser allowlist, plus a test that expects 403 for each paid integration.
 
 ### Thu Nov 26: Polish and submit
 
 - Replaced the scaffold landing copy and metadata. Added Try it solo on the signed-in home page, with recovery in the newly created room if seating the demo partner fails.
 - TypeScript, ESLint, and 92 unit tests passed on the polish branch. Playwright discovered the solo entry test, but DeepSpace CLI auth could not write its refreshed token in the sandbox, so the browser test did not run.
-- The live homepage returned HTTP 200. This checks reachability only. The physical-phone pass, final deploy, and portal submission are pending.
+- Merged discovery, copy-link invites, Keep or Risk and polish after review (conflicts resolved in a scratch merge first, which matched `main` exactly). Deployed `main` to https://double-feature.app.space.
+- Final check: the full Playwright suite against the live URL, 57 passed and 1 skipped (the paid discovery test, off unless `RUN_PAID_DISCOVERY=1`). The same suite passed locally. TypeScript and ESLint clean, 156 unit tests.
+- Not done by me: a real paid discovery run on this release, the physical-phone pass, listening to the six pinned trailers, Google sign-in. Portal submission pending.
 
 ---
 
@@ -256,7 +260,7 @@ Verified the DeepSpace YouTube contract with one search for Chungking Express. T
 - [x] Simultaneous submits produce exactly one result (end-to-end test and unit test locally, and the end-to-end test against the deployed app, release #5)
 - [x] Rating edit is saved once and changes the next recommendation input (an edit replaces the rating, verified live, release #7; that ratings reorder the next shortlist is covered by unit tests only, not exercised live)
 - [x] Already-seen film does not come back while at least 3 fresh films remain; after that it can return as a flagged repeat (unit tests, local; not exercised live)
-- [ ] Mobile layout checked on a phone
+- [ ] Mobile layout checked on a phone (390px and 375px layouts are covered by automated tests only)
 - [ ] No secrets in the repo or logs
 
 ## Agent log: things the agent got wrong or I changed
@@ -271,10 +275,14 @@ _(Add entries as they happen: what it produced, what was wrong, what I did inste
 - **Docs summary, email sender:** a subagent's summary of the docs said the sender must be `<app-name>@app.space`. The live catalog says it is fixed and `from` is ignored. Trust the CLI output.
 
 ## Writeup draft
-I built Double Feature to help two people pick a movie together. The host shares an invite, both players set the mood and vote privately, and the server reveals the result once both ballots are in. Ratings help order the next shortlist. A demo partner lets reviewers try the flow solo.
+**What I built.** Double Feature helps two people pick a movie together. The host creates a room and shares an invite link. Both players set a mood and a runtime limit, then vote privately on a shortlist. The server reveals one pick only after both ballots are in, with receipts and a taste-match score. Players can rate the pick, and ratings shape the next round's shortlist. If nobody matches, the host can start another round, or the pair can play Keep or Risk, a short tiebreaker where each locks a nomination and then secretly chooses Keep or Risk. "Try it solo" seats a demo partner so a reviewer can run the whole flow alone. The reveal can show a YouTube trailer on request.
 
-The core catalog is curated so the demo can run with predictable results. The reveal can show a YouTube trailer on request. Access checks and vote validation run on the server, and ballot storage is private. Routing submissions through server actions adds coordination work but makes the reveal cutoff enforceable.
+**Integrations.** Exa web search, Anthropic (`claude-haiku-4-5`), and Wikipedia power opt-in discovery of films outside the curated catalog. YouTube search finds trailers, and six films have hand-picked trailers that cost nothing. All are called from the server through DeepSpace integrations, so no keys are in the repo or the browser. Records, rooms, live updates and sign-in use the DeepSpace platform.
 
-I used an agent to draft and iterate on the data model, actions, screens, and tests. During review I corrected room read permissions, required signatures for internal writes, and fixed trailer selection for films with remakes. The live checks recorded above cover room joins, three-account ballot privacy, simultaneous submissions, reveal outcomes, and rating edits.
+**Main tradeoff.** Ballots are never readable by any client. Votes go through server actions, which check membership and run in a serial queue, instead of writing straight to a shared collection. That adds coordination work, but it makes the reveal cutoff and "exactly one result" enforceable, and I checked it with raw WebSocket reads, forged writes, and an outsider account. The cost is that discovery and trailer lookups have to be capped and kept outside that queue so a slow search cannot freeze other rooms.
 
-Before submission, reconcile this draft with the deployed release and record the final phone and keyboard checks. Mention discovery and Keep or Risk only if they are in that release.
+**What the agent did, and what I changed.** Agents (Claude and Codex) drafted the data model, actions, screens and tests, one pull request at a time. I reviewed each one and corrected what I found: room read permissions that exposed invite codes, an internal write endpoint that trusted a user id in the request body (now signed), a trailer picker that returned a remake's trailer, and a scaffold route that let any signed-in user spend my integration credits. Running discovery for real also exposed a model that returned nothing, titles attached to the wrong plot, and wasted paid searches. Details are in the agent log above.
+
+**What I verified.** Against the deployed site: the full Playwright suite, 57 passed (rooms and joins, voting, three-account ballot privacy, simultaneous submissions, reveal outcomes, ratings, trailers, Keep or Risk, and the spend check). Real GitHub sign-in worked by hand in the browser. Discovery cost was measured on real runs.
+
+**Not verified.** A real paid discovery run on the final release, playback of the pinned trailers by a person, a physical-phone pass, Google sign-in, and automatic invite resume after sign-in from a clean browser.
