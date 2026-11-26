@@ -228,7 +228,7 @@ _(fill in)_
 - TypeScript, ESLint, and 92 unit tests passed on the polish branch. Playwright discovered the solo entry test, but DeepSpace CLI auth could not write its refreshed token in the sandbox, so the browser test did not run.
 - Merged discovery, copy-link invites, Keep or Risk and polish after review (conflicts resolved in a scratch merge first, which matched `main` exactly). Deployed `main` to https://double-feature.app.space.
 - Final check: the full Playwright suite against the live URL, 57 passed and 1 skipped (the paid discovery test, off unless `RUN_PAID_DISCOVERY=1`). The same suite passed locally. TypeScript and ESLint clean, 156 unit tests.
-- Not done by me: a real paid discovery run on this release, the physical-phone pass, listening to the six pinned trailers, Google sign-in. Portal submission pending.
+- Colin watched the pinned trailers on the deployed site and reported they looked good. Phone and keyboard use were simulated with Playwright instead of a physical phone (see the checklist). Not done: a real paid discovery run on this release, a physical-phone pass, Google sign-in. Portal submission pending.
 
 ---
 
@@ -260,7 +260,7 @@ Verified the DeepSpace YouTube contract with one search for Chungking Express. T
 - [x] Simultaneous submits produce exactly one result (end-to-end test and unit test locally, and the end-to-end test against the deployed app, release #5)
 - [x] Rating edit is saved once and changes the next recommendation input (an edit replaces the rating, verified live, release #7; that ratings reorder the next shortlist is covered by unit tests only, not exercised live)
 - [x] Already-seen film does not come back while at least 3 fresh films remain; after that it can return as a flagged repeat (unit tests, local; not exercised live)
-- [ ] Mobile layout checked on a phone (390px and 375px layouts are covered by automated tests only)
+- [x] Mobile layout and keyboard use, **simulated, not on a physical phone** (Thu Nov 26, live site, 375px-wide touch-sized viewport driven by Playwright): no sideways scroll on Home, room, setup, voting or reveal; a solo game played start to finish with the keyboard only (Tab, Enter, and the 1 key to vote); Tab reaches trailer, ratings, tags and Start another round; keyboard focus shows a visible ring on the main buttons. Small touch targets found: the header menu button is 32x32, the Guest chip 62x34, and the "Back to movie night" link is 21px tall (the main game buttons are not small). Not fixed.
 - [ ] No secrets in the repo or logs
 
 ## Agent log: things the agent got wrong or I changed
@@ -285,4 +285,6 @@ _(Add entries as they happen: what it produced, what was wrong, what I did inste
 
 **What I verified.** Against the deployed site: the full Playwright suite, 57 passed (rooms and joins, voting, three-account ballot privacy, simultaneous submissions, reveal outcomes, ratings, trailers, Keep or Risk, and the spend check). Real GitHub sign-in worked by hand in the browser. Discovery cost was measured on real runs.
 
-**Not verified.** A real paid discovery run on the final release, playback of the pinned trailers by a person, a physical-phone pass, Google sign-in, and automatic invite resume after sign-in from a clean browser.
+**Also checked.** Colin watched the pinned trailers on the deployed site and they looked right. I simulated a phone-width screen and a keyboard-only game on the live site (no sideways scroll, a full solo game by keyboard, visible focus ring); a few header and link targets are smaller than 40px.
+
+**Not verified.** A real paid discovery run on the final release, a physical-phone pass, Google sign-in, and automatic invite resume after sign-in from a clean browser.
