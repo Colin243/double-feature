@@ -64,6 +64,10 @@ export async function liveQuery(
     const ws = new WebSocket(`${protocol}//${location.host}/ws/${scope}?token=${encodeURIComponent(token)}`)
     const subscriptionId = `probe-${Math.random().toString(36).slice(2)}`
     const out: LiveQuery = { records: [], changes: [], errors: [] }
+    const started = Date.now()
+    // The window starts when the first snapshot arrives, not when the socket opens: under load the
+    // snapshot can be slow, and an answer collected before it would look like an empty result.
+    let snapshotAt = 0
     ws.onopen = () => ws.send(JSON.stringify({
       type: 'core.subscribe', payload: { subscriptionId, query: { collection } },
     }))
@@ -72,6 +76,7 @@ export async function liveQuery(
       try { message = JSON.parse(String(event.data)) } catch { return }
       const payload = message.payload ?? {}
       if (message.type === 'core.query_result' && payload.subscriptionId === subscriptionId) {
+        if (!snapshotAt) snapshotAt = Date.now()
         out.records.push(...((payload.records as LiveQuery['records']) ?? []))
       } else if (message.type === 'core.record_change' && payload.collection === collection) {
         out.changes.push(payload)
@@ -80,7 +85,11 @@ export async function liveQuery(
       }
     }
     ws.onerror = () => out.errors.push({ error: 'socket error' })
-    setTimeout(() => { ws.close(); resolve(out) }, windowMs)
+    const finish = () => { clearInterval(timer); ws.close(); resolve(out) }
+    const timer = setInterval(() => {
+      if (snapshotAt && Date.now() - snapshotAt >= windowMs) finish()
+      else if (!snapshotAt && Date.now() - started > windowMs + 10_000) finish()
+    }, 50)
   }), { scope, token, collection, windowMs })
 }
 

@@ -196,9 +196,9 @@ test('no votes reach the other player’s browser before the reveal', async ({ u
   const dataFrames = frames.filter(frame => !frame.includes('"type":"records.list_schemas"') && frame.includes(roundId))
   expect(dataFrames.length).toBeGreaterThan(0)
   for (const frame of dataFrames) {
-    expect(frame).not.toContain('hostVotes')
-    expect(frame).not.toContain('guestVotes')
-    expect(frame).not.toContain('"votes"')
+    const leaked = ['hostVotes', 'guestVotes', '"votes"'].find(word => frame.includes(word))
+    // Say which frame it was, so a failure can be told apart from a test collision.
+    expect(leaked, `a frame sent before the reveal contained ${leaked}: ${frame.slice(0, 400)}`).toBeUndefined()
   }
 
   await submit(guest, roundId, shortlist, 'want')

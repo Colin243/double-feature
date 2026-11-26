@@ -1,3 +1,4 @@
+import { runtimeLabel, safeSourceUrl } from '@/lib/films'
 import type { Film } from '@/lib/films'
 
 export type Outcome = 'match' | 'closest' | 'none'
@@ -34,10 +35,14 @@ export function RevealCard({ outcome, film, reason, animate }: {
       )}
       {film && (
         <p className="df-reveal-meta">
-          {film.year} · {film.runtimeMinutes} min · <span className="capitalize">{film.moods.join(' · ')}</span>
+          {film.year} · {runtimeLabel(film)} · <span className="capitalize">{film.moods.join(' · ')}</span>
         </p>
       )}
       {film && <div>{film.hook}</div>}
+      {film?.reason && <p className="df-reveal-note-plain">Why this one: {film.reason}</p>}
+      {film && safeSourceUrl(film.sourceUrl) && (
+        <p><a href={safeSourceUrl(film.sourceUrl) ?? undefined} target="_blank" rel="noreferrer noopener">Checked on Wikipedia</a></p>
+      )}
       <p className="df-reveal-reason">{reason}</p>
     </article>
   )
