@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth, useQuery } from 'deepspace'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { Button, Input, Label } from '@/components/ui'
 import { RoomRound } from '@/components/RoomRound'
 import { roomAction } from '@/lib/room-actions'
@@ -10,11 +10,14 @@ type Room = { hostId: string; guestId: string; inviteCode: string; status: 'wait
 
 export default function RoomPage() {
   const { roomId = '' } = useParams()
+  const location = useLocation()
   const { userId } = useAuth()
   const { records, status } = useQuery<Room>('rooms', { where: { recordId: roomId }, limit: 1 })
   const room = records[0]?.data
   const [adding, setAdding] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(() => location.state?.soloSetupFailed
+    ? 'Your room is ready. Try adding the demo partner again.'
+    : '')
 
   async function addPartner() {
     if (adding) return

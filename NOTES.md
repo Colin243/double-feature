@@ -221,7 +221,10 @@ _(fill in)_
 _(fill in)_
 
 ### Thu Nov 26: Polish and submit
-_(fill in)_
+
+- Replaced the scaffold landing copy and metadata. Added Try it solo on the signed-in home page, with recovery in the newly created room if seating the demo partner fails.
+- TypeScript, ESLint, and 92 unit tests passed on the polish branch. Playwright discovered the solo entry test, but DeepSpace CLI auth could not write its refreshed token in the sandbox, so the browser test did not run.
+- The live homepage returned HTTP 200. This checks reachability only. The physical-phone pass, final deploy, and portal submission are pending.
 
 ---
 
@@ -268,4 +271,10 @@ _(Add entries as they happen: what it produced, what was wrong, what I did inste
 - **Docs summary, email sender:** a subagent's summary of the docs said the sender must be `<app-name>@app.space`. The live catalog says it is fixed and `from` is ignored. Trust the CLI output.
 
 ## Writeup draft
-_(Start assembling on Thursday morning from the sections above.)_
+I built Double Feature to help two people pick a movie together. The host shares an invite, both players set the mood and vote privately, and the server reveals the result once both ballots are in. Ratings help order the next shortlist. A demo partner lets reviewers try the flow solo.
+
+The core catalog is curated so the demo can run with predictable results. The reveal can show a YouTube trailer on request. Access checks and vote validation run on the server, and ballot storage is private. Routing submissions through server actions adds coordination work but makes the reveal cutoff enforceable.
+
+I used an agent to draft and iterate on the data model, actions, screens, and tests. During review I corrected room read permissions, required signatures for internal writes, and fixed trailer selection for films with remakes. The live checks recorded above cover room joins, three-account ballot privacy, simultaneous submissions, reveal outcomes, and rating edits.
+
+Before submission, reconcile this draft with the deployed release and record the final phone and keyboard checks. Mention discovery and Keep or Risk only if they are in that release.

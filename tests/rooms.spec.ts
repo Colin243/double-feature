@@ -170,3 +170,12 @@ test('returning to Home after sign-in resumes the pending invite in the same tab
   await expect(page.getByRole('button', { name: 'Create a room' })).toBeVisible()
   await expect(page).toHaveURL(new URL('/home', url).href)
 })
+
+test('the home page can start a room with the demo partner', async ({ users }) => {
+  const [host] = await users(1)
+  await host.page.goto('/home')
+  await host.page.getByRole('button', { name: 'Try it solo' }).click()
+  await expect(host.page).toHaveURL(roomRoute)
+  await expect(host.page.getByText('Demo partner joined')).toBeVisible()
+  await expect(host.page.getByRole('button', { name: 'Set up voting' })).toBeEnabled()
+})
