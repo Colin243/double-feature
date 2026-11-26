@@ -32,7 +32,7 @@ Tick only what you did yourself. Copy results into `NOTES.md`.
 ## Writeup (portal field)
 Assemble from `NOTES.md` and the PR descriptions. Keep it short and honest.
 1. **What I built.** Two-person movie night: private ballots, server-decided reveal, ratings that shape the next round.
-2. **Integrations used and why.** Exa (candidates with sources), the model (ranking from the brief and ratings), YouTube (trailers), email if built. One line each on what was left out and why: TMDB, image generation, others.
+2. **Integrations used and why.** YouTube supplies trailers on demand. If discovery is deployed, describe the actual providers and fallback from PR #9. Copy-link invites do not use email.
 3. **Main tradeoff.** Ballots are server-only so privacy is enforced by the platform, at the cost of routing every vote through an action instead of a live query. Name the second tradeoff: seed set plus fallback over a model-only shortlist, so the demo is reliable.
 4. **What the agent did.** Drafted the plan, schemas, actions, UI and tests.
 5. **What I verified myself.** The three-account privacy check, the simultaneous submit, the solo demo, the phone check, and the list of things I corrected from `NOTES.md`'s agent-mistakes section.
@@ -42,6 +42,16 @@ Assemble from `NOTES.md` and the PR descriptions. Keep it short and honest.
 - Live URL: `https://double-feature.app.space`
 - Repository: `https://github.com/Colin243/double-feature`
 - Paste the writeup. Submit mid-afternoon, not at 11 p.m.
+
+## Verification recorded for this branch
+
+- [x] Landing copy and preview description updated
+- [x] Signed-in solo entry uses the existing demo-partner action
+- [x] TypeScript, ESLint, and 92 unit tests passed
+- [ ] Run the new solo browser test. The sandbox blocked DeepSpace from saving its refreshed token.
+- [ ] Verify the final release on a real phone and complete the portal submission.
+
+The writeup draft and previously reported live verification are in [NOTES.md](../../NOTES.md).
 
 ## Acceptance
 - [ ] Checklist above ticked honestly
