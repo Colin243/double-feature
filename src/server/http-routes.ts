@@ -29,7 +29,7 @@ import {
   nativeAuthToken,
 } from 'deepspace/worker'
 import type { ExpoAuthBridgeOptions, JwtVerifierConfig, VerifyResult } from 'deepspace/worker'
-import { integrations } from '../integrations.js'
+import { browserCallableIntegrations, integrations } from '../integrations.js'
 import type { AppContext, Env } from '../../worker.js'
 
 function jwtConfig(env: Env): JwtVerifierConfig {
@@ -237,6 +237,12 @@ export function registerAuthAndIntegrationRoutes(app: Hono<AppContext>): void {
     // identifiers only, and own keys only for the config.
     const target = integrationPath(integrationName, c.req.param('endpoint'))
     if (!target) return c.json({ error: 'Unknown integration' }, 404)
+    // Every paid call in this app is made by a server action with its own daily
+    // limits. A browser calling an integration directly would spend the app
+    // owner's credits with no limit at all, so only listed calls pass.
+    if (!browserCallableIntegrations.has(`${integrationName}/${c.req.param('endpoint')}`)) {
+      return c.json({ error: 'This integration is not available from the browser' }, 403)
+    }
     const config = lookupOwn(integrations, integrationName)
     const billingMode = config?.billing ?? 'developer'
 

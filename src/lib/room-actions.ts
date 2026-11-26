@@ -4,7 +4,13 @@ import type { Mood, RuntimeLimit } from './moods'
 import type { Rating } from './rating'
 import type { Trailer } from './trailer'
 
+export type DiscoverResult =
+  | { status: 'ready'; count: number; cached: boolean }
+  | { status: 'fallback'; reason: string }
+  | { status: 'busy' }
+
 type RoomActions = {
+  discoverFilms: { params: { roundId: string; brief?: string }; data: DiscoverResult }
   getTrailer: { params: { roundId: string; filmId: string }; data: { trailer: Trailer | null } }
   seedDemoHistory: { params: { roomId: string }; data: { saved: true } }
   saveRating: { params: { roomId: string; filmId: string; roundId?: string } & Rating; data: { saved: true } }
@@ -18,6 +24,7 @@ type RoomActions = {
 }
 
 const messages: Record<string, string> = {
+  rate_limited: 'The film search has reached its limit for today.',
   invalid_input: 'Check your input and try again.',
   wrong_status: 'This round has moved on.',
   ballot_invalid: 'Choose one vote for every film before submitting.',
