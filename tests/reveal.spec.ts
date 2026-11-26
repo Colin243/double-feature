@@ -242,3 +242,32 @@ test('a browser belonging to someone outside the room receives nothing about it,
   expect(heard.filter(frame => /hostVotes|guestVotes/.test(frame))).toEqual([])
   expect(heard.length).toBeGreaterThan(0) // the socket was open and receiving, so silence means something
 })
+
+test('Keep or Risk reveals one winner to both players after no match', async ({ users }) => {
+  const [hostUser, guestUser] = await users(2)
+  const [host, guest] = await Promise.all([player(hostUser.page), player(guestUser.page)])
+  const { roomId, roundId, shortlist } = await votingRound(host, guest)
+  await submit(host, roundId, shortlist, 'pass')
+  await submit(guest, roundId, shortlist, 'pass')
+  await Promise.all([open(host, roomId), open(guest, roomId)])
+
+  for (const [who, film] of [[host, shortlist[0]], [guest, shortlist[1]]] as const) {
+    await who.page.getByRole('button', { name: 'Play Keep or Risk' }).click()
+    await who.page.getByLabel('Nominate a film').selectOption(film.id)
+    await who.page.getByRole('button', { name: 'Lock nomination' }).click()
+  }
+
+  await host.page.getByRole('button', { name: 'Risk', exact: true }).click()
+  await expect(host.page.getByText(/Choice locked/)).toBeVisible()
+  await guest.page.getByRole('button', { name: 'Keep', exact: true }).click()
+
+  for (const who of [host, guest]) {
+    const game = who.page.getByRole('region', { name: 'Keep or Risk' })
+    await expect(game.getByText('Tonight’s pick')).toBeVisible()
+    await expect(game.getByRole('heading', { name: shortlist[0].title })).toBeVisible()
+  }
+
+  await host.page.reload()
+  await host.page.getByRole('button', { name: 'Play Keep or Risk' }).click()
+  await expect(host.page.getByRole('region', { name: 'Keep or Risk' }).getByRole('heading', { name: shortlist[0].title })).toBeVisible()
+})

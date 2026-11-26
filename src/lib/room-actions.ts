@@ -4,6 +4,8 @@ import type { Mood, RuntimeLimit } from './moods'
 import type { Rating } from './rating'
 import type { Trailer } from './trailer'
 
+import type { WildcardChoice, WildcardView } from './wildcard'
+
 export type DiscoverResult =
   | { status: 'ready'; count: number; cached: boolean }
   | { status: 'fallback'; reason: string }
@@ -11,6 +13,9 @@ export type DiscoverResult =
 
 type RoomActions = {
   discoverFilms: { params: { roundId: string; brief?: string }; data: DiscoverResult }
+  getWildcard: { params: { roundId: string }; data: WildcardView }
+  nominateWildcard: { params: { roundId: string } & ({ filmId: string } | { manualTitle: string; year: number }); data: WildcardView }
+  chooseWildcard: { params: { roundId: string; choice: WildcardChoice }; data: WildcardView }
   getTrailer: { params: { roundId: string; filmId: string }; data: { trailer: Trailer | null } }
   seedDemoHistory: { params: { roomId: string }; data: { saved: true } }
   saveRating: { params: { roomId: string; filmId: string; roundId?: string } & Rating; data: { saved: true } }
