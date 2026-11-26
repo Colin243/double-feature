@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { useAuth, useQuery } from 'deepspace'
 import { Link, useParams } from 'react-router-dom'
-import { Button } from '@/components/ui'
+import { Button, Input, Label } from '@/components/ui'
 import { RoomRound } from '@/components/RoomRound'
 import { roomAction } from '@/lib/room-actions'
 
@@ -13,7 +14,6 @@ export default function RoomPage() {
   const { records, status } = useQuery<Room>('rooms', { where: { recordId: roomId }, limit: 1 })
   const room = records[0]?.data
   const [adding, setAdding] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
 
   async function addPartner() {
@@ -26,16 +26,6 @@ export default function RoomPage() {
       setError(err instanceof Error ? err.message : 'Could not add a demo partner.')
     } finally {
       setAdding(false)
-    }
-  }
-
-  async function copyInvite(code: string) {
-    setError('')
-    try {
-      await navigator.clipboard.writeText(new URL(`/join/${code}`, window.location.origin).href)
-      setCopied(true)
-    } catch {
-      setError('Could not copy the link. Share the invite code instead.')
     }
   }
 
@@ -55,9 +45,7 @@ export default function RoomPage() {
           {room.hostId === userId && room.status === 'waiting' && (
             <>
               <p>Invite code <strong>{room.inviteCode}</strong></p>
-              <Button variant="outline" onClick={() => copyInvite(room.inviteCode)}>
-                {copied ? 'Link copied' : 'Copy invite link'}
-              </Button>
+              <WaitingRoomInvite key={room.inviteCode} code={room.inviteCode} />
               <Button onClick={addPartner} disabled={adding}>
                 {adding ? 'Adding…' : 'Play with a demo partner'}
               </Button>
@@ -68,5 +56,34 @@ export default function RoomPage() {
       {error && <p role="alert">{error}</p>}
       <Link to="/home">Back to movie night</Link>
     </main>
+  )
+}
+
+function WaitingRoomInvite({ code }: { code: string }) {
+  const input = useRef<HTMLInputElement>(null)
+  const [feedback, setFeedback] = useState('')
+  const link = new URL(`/join/${encodeURIComponent(code)}`, window.location.origin).href
+
+  async function copyInvite(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    try {
+      await navigator.clipboard.writeText(link)
+      setFeedback('Invite link copied.')
+    } catch {
+      input.current?.focus()
+      input.current?.select()
+      setFeedback('Copy the selected link manually.')
+    }
+  }
+
+  return (
+    <form onSubmit={copyInvite} className="grid gap-2">
+      <Label htmlFor="room-invite-link">Invite link</Label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input id="room-invite-link" ref={input} readOnly value={link} onFocus={event => event.currentTarget.select()} />
+        <Button type="submit" variant="outline">Copy invite link</Button>
+      </div>
+      {feedback && <p role="status">{feedback}</p>}
+    </form>
   )
 }
