@@ -1,3 +1,4 @@
+import { fitsRuntime } from './films'
 import type { Film } from './films'
 import { fnv1a } from './finalize'
 import { moodChips } from './moods'
@@ -10,7 +11,7 @@ export function rankByRatings(
   pool: readonly Film[], moods: readonly Mood[], maxRuntime: number,
   ratings: readonly FilmRating[], roundId: string, catalog: readonly Film[],
 ) {
-  const eligible = maxRuntime ? pool.filter(film => film.runtimeMinutes < maxRuntime) : pool
+  const eligible = pool.filter(film => fitsRuntime(film, maxRuntime))
   const candidates = eligible.length ? eligible : pool
   const moodTags = new Set<string>(moods.flatMap(mood => moodChips[mood].tags))
   const catalogById = new Map(catalog.map(film => [film.id, film]))

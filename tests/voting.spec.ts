@@ -55,8 +55,10 @@ test('desktop players save preferences, vote privately, and see live readiness',
   await host.page.getByRole('textbox', { name: 'Tonight’s brief' }).fill('A short movie night')
   await host.page.getByRole('button', { name: 'Start voting' }).click()
 
-  await expect(guest.page.getByText('1 of 2 films')).toBeVisible()
-  await expect(host.page.getByText('1 of 2 films')).toBeVisible()
+  // How many films fit "Under 100m" depends on what these shared accounts have rated in earlier
+  // runs (rated films are left out), so only require that voting started on a shortlist.
+  await expect(guest.page.getByText(/^1 of \d+ films$/)).toBeVisible()
+  await expect(host.page.getByText(/^1 of \d+ films$/)).toBeVisible()
   await expect(host.page.locator('.df-round-grid')).toHaveCSS('grid-template-columns', /px .*px/)
   await host.page.keyboard.press('1')
   await expect(host.page.getByRole('button', { name: 'Want to watch', exact: true }))

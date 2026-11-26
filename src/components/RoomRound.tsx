@@ -7,6 +7,7 @@ import { buildBrief, moodChips } from '@/lib/moods'
 import type { Mood, RuntimeLimit } from '@/lib/moods'
 import { validateBallot, voteLabels, voteOptions } from '@/lib/ballot'
 import type { Vote, Votes } from '@/lib/ballot'
+import { runtimeLabel, safeSourceUrl } from '@/lib/films'
 import type { Film } from '@/lib/films'
 import './room-round.css'
 
@@ -17,7 +18,7 @@ type Round = {
   hostRuntime: RuntimeLimit
   guestRuntime: RuntimeLimit
   shortlist: Film[]
-  inputs?: { runtimeLimitIgnored?: boolean; personalized?: boolean; repeatedFilmIds?: string[] }
+  inputs?: { runtimeLimitIgnored?: boolean; personalized?: boolean; repeatedFilmIds?: string[]; discovery?: { used: boolean; count?: number } }
   submittedHost: boolean
   submittedGuest: boolean
 }
@@ -99,6 +100,8 @@ function MoodSetup({ round, roundId, roomId, isHost, isDemo }: {
   const storedRuntime = isHost ? round.hostRuntime : round.guestRuntime
   const [draft, setDraft] = useState<{ moods: Mood[]; runtime: RuntimeLimit }>()
   const [demoLoaded, setDemoLoaded] = useState(false)
+  const [discover, setDiscover] = useState(false)
+  const [discoveryNote, setDiscoveryNote] = useState('')
   const [brief, setBrief] = useState<string>()
   const [saved, setSaved] = useState(false)
   const { busy, error, run } = useRoundRequest()
@@ -168,8 +171,26 @@ function MoodSetup({ round, roundId, roomId, isHost, isDemo }: {
                   {demoLoaded && <p role="status">Demo ratings loaded.</p>}
                 </div>
               )}
+              <label className="df-check">
+                <input type="checkbox" checked={discover} disabled={busy}
+                  onChange={event => setDiscover(event.target.checked)} />
+                <span>Find new films with AI search</span>
+              </label>
+              <p>Uses a web search and an AI model, then checks every film on Wikipedia. If it does not work, we use our own list.</p>
+              {discoveryNote && <p role="status">{discoveryNote}</p>}
               <Button loading={busy} onClick={() => run(async () => {
                 if (draft && !saved) await save()
+                if (discover) {
+                  setDiscoveryNote('Searching for films. This can take up to half a minute.')
+                  try {
+                    const found = await roomAction('discoverFilms', { roundId, brief: brief ?? preview })
+                    setDiscoveryNote(found.status === 'ready'
+                      ? `Found ${found.count} films to vote on.`
+                      : 'The film search did not work this time, so we are using our own list.')
+                  } catch (err) {
+                    setDiscoveryNote(`${err instanceof Error ? err.message : 'The film search failed.'} We are using our own list.`)
+                  }
+                }
                 await roomAction('startRound', { roomId, brief })
               })}>Start voting</Button>
             </>
@@ -264,6 +285,9 @@ function Voting({ round, roundId, isHost }: { round: Round; roundId: string; isH
     <>
       <div className="df-progress"><strong>{index + 1} of {round.shortlist.length} films</strong><span>Private vote</span></div>
       {round.inputs?.personalized && <p>Past ratings helped order tonight’s shortlist.</p>}
+      {round.inputs?.discovery?.used && (
+        <p role="status">Some of these films came from a web search and were checked on Wikipedia. Those have no verified runtime.</p>
+      )}
       {!!round.inputs?.repeatedFilmIds?.length && (
         <p role="status">You’ve seen most of the catalog, so some of these films are repeats.</p>
       )}
@@ -280,8 +304,12 @@ function Voting({ round, roundId, isHost }: { round: Round; roundId: string; isH
             <img src="/double-feature/film-art-mobile.svg" alt="" width="310" height="126" />
           </picture>
           <h2>{film.title}</h2>
-          <p>{film.year} · {film.runtimeMinutes} min</p>
+          <p>{film.year} · {runtimeLabel(film)}</p>
           <div>{film.hook}</div>
+          {film.reason && <p className="df-reason">Why this one: {film.reason}</p>}
+          {safeSourceUrl(film.sourceUrl) && (
+            <p><a href={safeSourceUrl(film.sourceUrl) ?? undefined} target="_blank" rel="noreferrer noopener">Checked on Wikipedia</a></p>
+          )}
           <p className="capitalize">{film.moods.join(' · ')}</p>
         </article>
         <div className="df-vote-side">

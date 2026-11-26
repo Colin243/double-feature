@@ -6,7 +6,13 @@ import type { Trailer } from './trailer'
 
 import type { WildcardChoice, WildcardView } from './wildcard'
 
+export type DiscoverResult =
+  | { status: 'ready'; count: number; cached: boolean }
+  | { status: 'fallback'; reason: string }
+  | { status: 'busy' }
+
 type RoomActions = {
+  discoverFilms: { params: { roundId: string; brief?: string }; data: DiscoverResult }
   getWildcard: { params: { roundId: string }; data: WildcardView }
   nominateWildcard: { params: { roundId: string } & ({ filmId: string } | { manualTitle: string; year: number }); data: WildcardView }
   chooseWildcard: { params: { roundId: string; choice: WildcardChoice }; data: WildcardView }
@@ -23,6 +29,7 @@ type RoomActions = {
 }
 
 const messages: Record<string, string> = {
+  rate_limited: 'The film search has reached its limit for today.',
   invalid_input: 'Check your input and try again.',
   wrong_status: 'This round has moved on.',
   ballot_invalid: 'Choose one vote for every film before submitting.',

@@ -2,9 +2,30 @@ export interface Film {
   id: string
   title: string
   year: number
-  runtimeMinutes: number
+  /** null when the runtime is not known (films found by discovery). */
+  runtimeMinutes: number | null
   moods: readonly string[]
   hook: string
+  /** Why a discovered film was suggested, in one short sentence. */
+  reason?: string
+  /** A page that confirms the film exists (a Wikipedia article, for discovered films). */
+  sourceUrl?: string
+  source?: 'seed' | 'discovered'
+}
+
+/**
+ * A film passes a runtime limit when there is no limit, when its runtime is
+ * under the limit, or when its runtime is not known. An unknown runtime is
+ * shown as "runtime unverified" rather than silently dropped or silently
+ * treated as short.
+ */
+export function fitsRuntime(film: Pick<Film, 'runtimeMinutes'>, maxRuntime: number): boolean {
+  return !maxRuntime || film.runtimeMinutes === null || film.runtimeMinutes < maxRuntime
+}
+
+/** "98 min", or a plain statement that the runtime is not known. */
+export function runtimeLabel(film: Pick<Film, 'runtimeMinutes'>): string {
+  return film.runtimeMinutes === null ? 'runtime unverified' : `${film.runtimeMinutes} min`
 }
 
 export const seedFilms: readonly Film[] = [
@@ -57,3 +78,8 @@ export const seedFilms: readonly Film[] = [
     hook: 'A young resistance recruit takes on a dangerous undercover role in wartime Shanghai.',
   },
 ]
+
+/** Only ever link to a Wikipedia article: the address is built on the server, but the browser still checks it. */
+export function safeSourceUrl(url: string | undefined): string | null {
+  return url && url.startsWith('https://en.wikipedia.org/wiki/') ? url : null
+}

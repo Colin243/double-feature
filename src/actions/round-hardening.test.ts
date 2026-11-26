@@ -8,7 +8,8 @@ import {
 
 // Every film is longer than the longest runtime limit a player can choose, so
 // the shortlist has to fall back to all films.
-vi.mock('../lib/films', () => ({
+vi.mock('../lib/films', async importOriginal => ({
+  ...(await importOriginal<typeof import('../lib/films')>()),
   seedFilms: ['a', 'b', 'c'].map((id, index) => ({
     id, title: id.toUpperCase(), year: 2000 + index, runtimeMinutes: 150 + index,
     moods: ['funny'], hook: 'A long film.',

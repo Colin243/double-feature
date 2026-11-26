@@ -1,3 +1,4 @@
+import { fitsRuntime } from './films'
 import type { Film } from './films'
 
 export const moodChips = {
@@ -38,7 +39,7 @@ export function buildBrief(
 }
 
 export function rankSeedFilms(films: readonly Film[], moods: readonly Mood[], maxRuntime: number): Film[] {
-  const eligible = maxRuntime ? films.filter(film => film.runtimeMinutes < maxRuntime) : films
+  const eligible = films.filter(film => fitsRuntime(film, maxRuntime))
   const candidates = eligible.length ? eligible : films
   const tags = new Set<string>(moods.flatMap(mood => moodChips[mood].tags))
 
